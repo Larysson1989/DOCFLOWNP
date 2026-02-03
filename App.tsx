@@ -5,7 +5,7 @@ import {
   ShieldCheck, Layers, XCircle, FileSearch,
   AlertCircle, Zap, CheckCircle, AlertTriangle, Search,
   ChevronUp, ChevronDown, Lightbulb, Info, Plus, MessageCircle,
-  RefreshCw, Clock
+  RefreshCw, Clock, ChevronRight, ArrowLeft, Files, HelpCircle
 } from 'lucide-react';
 import { DocumentFile, ProcessingLog, DocCategory, ValidationResult } from './types';
 import { analyzeDocument } from './services/gemini';
@@ -20,6 +20,8 @@ export default function App() {
   const [protocol, setProtocol] = useState<string>('');
   const [showWarningModal, setShowWarningModal] = useState(false);
   const [showManifesto, setShowManifesto] = useState(false);
+  const [showHelpTooltip, setShowHelpTooltip] = useState(false);
+  const [expandedCard, setExpandedCard] = useState<number | null>(null);
   const [finalFileName, setFinalFileName] = useState<string>('');
 
   const addLog = useCallback((message: string, type: ProcessingLog['type'] = 'info') => {
@@ -29,6 +31,20 @@ export default function App() {
       type
     }, ...prev]);
   }, []);
+
+  const resetFlow = () => {
+    files.forEach(doc => URL.revokeObjectURL(doc.previewUrl));
+    setFiles([]);
+    setLogs([]);
+    setIsProcessing(false);
+    setStep('upload');
+    setProtocol('');
+    setShowWarningModal(false);
+    setShowHelpTooltip(false);
+    setFinalFileName('');
+    setExpandedCard(null);
+    addLog("Sistema reiniciado para novo fluxo.", "info");
+  };
 
   const compressImage = (base64Str: string): Promise<string> => {
     return new Promise((resolve) => {
@@ -78,8 +94,6 @@ export default function App() {
     addLog(`Ingerindo ${selectedFiles.length} documentos...`, 'info');
 
     const newDocs: DocumentFile[] = [];
-    
-    // Ingestão inicial
     for (let i = 0; i < selectedFiles.length; i++) {
       const file = selectedFiles[i];
       const reader = new FileReader();
@@ -103,10 +117,8 @@ export default function App() {
 
     setFiles(prev => [...prev, ...newDocs]);
 
-    // Processamento sequencial para evitar estourar quota (Rate Limiting preventivo)
     for (const doc of newDocs) {
       await processFileAnalysis(doc);
-      // Pequena pausa entre requisições para estabilidade
       await new Promise(r => setTimeout(r, 300));
     }
   };
@@ -208,29 +220,28 @@ export default function App() {
       format: 'a4'
     });
     
-    // CABEÇALHO
-    summaryDoc.setFillColor(16, 100, 174); // Azul HPP
+    const xCol1 = 20;
+    const xCol2 = 80;
+    const xCol3 = 170;
+    const wCol1 = 55;
+    const wCol2 = 85;
+
+    summaryDoc.setFillColor(16, 100, 174); 
     summaryDoc.rect(0, 0, 210, 45, 'F');
-    
     summaryDoc.setTextColor(255, 255, 255);
     summaryDoc.setFontSize(14);
     summaryDoc.setFont("helvetica", "bold");
     summaryDoc.text("HOSPITAL PEQUENO PRÍNCIPE", 15, 20);
-
     summaryDoc.setFontSize(15);
     summaryDoc.text("Relatório de Unificação e Compliance Documental", 15, 30);
-    
     summaryDoc.setFontSize(8);
     summaryDoc.setFont("helvetica", "normal");
     const statusText = validation.isValid ? 'CONFORME' : 'PENDENTE DE AJUSTE';
     const metadataLine = `PROTOCOLO: ${prot} | EMISSÃO: ${new Date().toLocaleString('pt-BR')} | STATUS: ${statusText}`;
     summaryDoc.text(metadataLine, 15, 38);
-
-    // FAIXA AMARELA
-    summaryDoc.setFillColor(251, 219, 20); // Amarelo HPP
+    summaryDoc.setFillColor(251, 219, 20); 
     summaryDoc.rect(0, 45, 210, 3, 'F');
 
-    // 1. INVENTÁRIO
     summaryDoc.setTextColor(15, 23, 42);
     summaryDoc.setFontSize(13);
     summaryDoc.setFont("helvetica", "bold");
@@ -240,30 +251,50 @@ export default function App() {
     summaryDoc.setFontSize(8);
     summaryDoc.setFillColor(241, 245, 249);
     summaryDoc.rect(15, y, 180, 10, 'F');
-    summaryDoc.text("TIPO / IDENTIFICAÇÃO", 20, y + 6.5);
-    summaryDoc.text("DETALHE DO ARQUIVO", 60, y + 6.5);
-    summaryDoc.text("VALOR AUDITADO", 165, y + 6.5);
+    summaryDoc.setTextColor(71, 85, 105);
+    summaryDoc.text("TIPO / IDENTIFICAÇÃO", xCol1, y + 6.5);
+    summaryDoc.text("DETALHE DO ARQUIVO", xCol2, y + 6.5);
+    summaryDoc.text("VALOR AUDITADO", xCol3, y + 6.5);
+    
     y += 15;
 
     files.forEach((f) => {
       summaryDoc.setFont("helvetica", "normal");
       summaryDoc.setTextColor(30, 41, 59);
-      const detailText = f.description || f.semanticType;
+      
+      const typeText = f.description || f.semanticType;
       const fileNameText = f.file.name;
       const valueText = f.extractedData?.value ? `R$ ${f.extractedData.value.toFixed(2)}` : '---';
-      
-      summaryDoc.text(detailText, 20, y);
-      summaryDoc.text(summaryDoc.splitTextToSize(fileNameText, 100), 60, y);
-      summaryDoc.text(valueText, 165, y);
-      y += 8;
-      if (y > 270) { summaryDoc.addPage(); y = 20; }
+
+      const typeLines = summaryDoc.splitTextToSize(typeText, wCol1);
+      const detailLines = summaryDoc.splitTextToSize(fileNameText, wCol2);
+
+      summaryDoc.text(typeLines, xCol1, y);
+      summaryDoc.text(detailLines, xCol2, y);
+      summaryDoc.text(valueText, xCol3, y);
+
+      const lineCount = Math.max(typeLines.length, detailLines.length);
+      const rowHeight = lineCount * 5;
+
+      y += rowHeight + 3;
+
+      if (y > 270) { 
+        summaryDoc.addPage(); 
+        y = 20; 
+        summaryDoc.setFillColor(241, 245, 249);
+        summaryDoc.rect(15, y, 180, 10, 'F');
+        summaryDoc.text("TIPO / IDENTIFICAÇÃO", xCol1, y + 6.5);
+        summaryDoc.text("DETALHE DO ARQUIVO", xCol2, y + 6.5);
+        summaryDoc.text("VALOR AUDITADO", xCol3, y + 6.5);
+        y += 15;
+      }
     });
 
-    // 2. NOTAS DE CONFORMIDADE
-    y += 10;
+    y += 5;
     if (y > 250) { summaryDoc.addPage(); y = 20; }
     summaryDoc.setFont("helvetica", "bold");
     summaryDoc.setFontSize(13);
+    summaryDoc.setTextColor(15, 23, 42);
     summaryDoc.text("2. NOTAS DE CONFORMIDADE", 15, y);
     summaryDoc.setDrawColor(226, 232, 240);
     summaryDoc.line(15, y + 2, 195, y + 2);
@@ -284,8 +315,7 @@ export default function App() {
       y = errorY;
     }
 
-    // 3. LOG DE RASTREABILIDADE
-    y += 15;
+    y += 10;
     if (y > 240) { summaryDoc.addPage(); y = 20; }
     summaryDoc.setFont("helvetica", "bold");
     summaryDoc.setFontSize(13);
@@ -297,7 +327,6 @@ export default function App() {
     summaryDoc.setFont("courier", "normal");
     summaryDoc.setFontSize(7);
     summaryDoc.setTextColor(100, 116, 139);
-    
     logs.slice(0, 15).reverse().forEach(log => {
       const logLine = `[${log.timestamp}] [${log.type.toUpperCase()}] - ${log.message}`;
       summaryDoc.text(logLine, 15, y);
@@ -319,7 +348,6 @@ export default function App() {
       mergedPdf.addPage(page);
     }
 
-    // ANEXAR ARQUIVOS
     for (const doc of files) {
       try {
         const fileBuffer = await doc.file.arrayBuffer();
@@ -344,35 +372,95 @@ export default function App() {
     link.click();
   };
 
+  const manifestoCards = [
+    {
+      title: "O que é o DocFlow NP?",
+      summary: "O DocFlow NP é uma ferramenta criada para organizar, registrar e dar rastreabilidade a processos documentais sensíveis...",
+      content: "O DocFlow NP é uma ferramenta de apoio institucional que organiza e registra atividades de unificação documental, especialmente em contextos que exigem responsabilidade, transparência e controle, como processos ligados a recursos públicos e impacto social."
+    },
+    {
+      title: "O que o DocFlow faz?",
+      summary: "O DocFlow NP apoia a organização de documentos, registra atividades e reduz erros operacionais...",
+      content: "A ferramenta analisa documentos, identifica tipos documentais, apoia a unificação em PDF e registra a atividade realizada, gerando documentos institucionais como o Borderô de Atividade. É fundamental reforçar que a decisão final é sempre humana."
+    },
+    {
+      title: "O que o DocFlow NÃO faz?",
+      summary: "O DocFlow NP não substitui pessoas, nem assume decisões legais, fiscais ou contábeis...",
+      content: "O sistema não valida juridicamente documentos, não substitui contadores, advogados ou Conselhos, e não decide pela completude ou correção das informações. Esta é uma escolha consciente de ética e governança institucional."
+    },
+    {
+      title: "Nosso propósito",
+      summary: "Nosso propósito é trazer clareza, ordem e responsabilidade a processos que hoje dependem de esforço manual...",
+      content: "Buscamos reduzir improvisos, minimizar o erro humano e oferecer segurança operacional a instituições que precisam fazer tudo certo, priorizando a conformidade técnica acima da simples velocidade."
+    },
+    {
+      title: "Quem atendemos?",
+      summary: "Atendemos instituições, equipes e profissionais que lidam com processos documentais sensíveis...",
+      content: "Focamos em instituições do terceiro setor, organizações que recebem recursos via destinação do IRPF, além de fundos, conselhos e equipes administrativas que priorizam governança e rastreabilidade total."
+    },
+    {
+      title: "O ecossistema Lary.IA",
+      summary: "O DocFlow NP faz parte do ecossistema Lary.IA, que cria soluções de IA com responsabilidade...",
+      content: "O Lary.IA utiliza a Inteligência Artificial como infraestrutura de confiança e apoio à decisão humana, focando na organização de processos complexos — nunca como uma substituição irresponsável de profissionais."
+    }
+  ];
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      {/* Manifesto Modal */}
       {showManifesto && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-2xl rounded-[3rem] overflow-hidden shadow-2xl border border-slate-200">
-            <div className="bg-brand-blue p-10 text-white relative">
-              <button onClick={() => setShowManifesto(false)} className="absolute top-8 right-8 text-white/50 hover:text-white transition-colors">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-3xl rounded-[3rem] overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
+            <div className="bg-brand-blue p-8 text-white relative shrink-0">
+              <button onClick={() => { setShowManifesto(false); setExpandedCard(null); }} className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors">
                 <XCircle className="w-8 h-8" />
               </button>
-              <Lightbulb className="w-16 h-16 text-brand-yellow mb-6" />
-              <h2 className="text-3xl font-black uppercase tracking-tight">Manifesto DocFlow NP</h2>
-              <p className="text-white/70 font-medium mt-2 italic text-sm">Criado no ecossistema da Lary.IA</p>
+              <Lightbulb className="w-12 h-12 text-brand-yellow mb-4" />
+              <h2 className="text-3xl font-black uppercase tracking-tight">DocFlow NP</h2>
+              <p className="text-white/70 font-medium text-sm">Criado no ecossistema Lary.IA</p>
+              <p className="text-[10px] uppercase font-black tracking-widest text-brand-yellow/80 mt-2 italic">“Tecnologia que respeita processos, pessoas e responsabilidades.”</p>
             </div>
-            <div className="p-10 space-y-8">
-              <section>
-                <h3 className="text-xs font-black text-brand-blue uppercase tracking-widest mb-4">O que é a ferramenta?</h3>
-                <p className="text-slate-600 leading-relaxed font-medium text-sm">
-                  O DocFlow NP é um ecossistema de automação documental projetado para o Hospital Pequeno Príncipe. 
-                  Sua missão é substituir processos manuais repetitivos por uma esteira de auditoria inteligente.
-                </p>
-              </section>
+            
+            <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-3 bg-slate-50/50">
+              {manifestoCards.map((card, idx) => (
+                <div 
+                  key={idx} 
+                  className={`bg-white rounded-2xl border transition-all duration-300 overflow-hidden ${expandedCard === idx ? 'border-brand-blue shadow-lg' : 'border-slate-100 hover:border-slate-300'}`}
+                >
+                  <button 
+                    onClick={() => setExpandedCard(expandedCard === idx ? null : idx)}
+                    className="w-full text-left p-5 flex items-start justify-between gap-4"
+                  >
+                    <div className="flex-1">
+                      <h3 className="text-sm font-black text-brand-blue uppercase mb-1">{card.title}</h3>
+                      <p className={`text-xs font-medium text-slate-500 leading-relaxed ${expandedCard === idx ? 'hidden' : 'line-clamp-2'}`}>
+                        {card.summary}
+                      </p>
+                    </div>
+                    <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all ${expandedCard === idx ? 'bg-brand-blue text-white rotate-90' : 'bg-slate-100 text-slate-400'}`}>
+                      <ChevronRight className="w-4 h-4" />
+                    </div>
+                  </button>
+                  
+                  {expandedCard === idx && (
+                    <div className="px-5 pb-6 animate-in slide-in-from-top-2 duration-300">
+                      <div className="h-px bg-slate-100 mb-4" />
+                      <p className="text-xs font-medium text-slate-600 leading-relaxed">
+                        {card.content}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="p-6 bg-white border-t border-slate-100 shrink-0">
               <a 
                 href="https://wa.me/5541997015424?text=Ol%C3%A1%2C%20quero%20falar%20sobre%20a%20Doc%20Flow%20NP" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="w-full bg-slate-900 text-white font-black py-5 rounded-3xl hover:bg-black transition-all flex items-center justify-center gap-3 text-sm shadow-xl"
+                className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-black transition-all flex items-center justify-center gap-3 text-xs shadow-xl"
               >
-                <MessageCircle className="w-5 h-5" /> FALAR COM DESENVOLVEDOR
+                <MessageCircle className="w-4 h-4" /> FALAR COM DESENVOLVEDOR
               </a>
             </div>
           </div>
@@ -380,29 +468,62 @@ export default function App() {
       )}
 
       {showWarningModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-brand-blue/90 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-lg rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-brand-yellow">
-            <div className="bg-brand-yellow p-8 text-brand-blue text-center">
-              <AlertTriangle className="w-14 h-14 mx-auto mb-3" />
-              <h2 className="text-2xl font-black uppercase">Falha de Compliance</h2>
-              <p className="text-xs font-bold opacity-80 mt-1">Divergências detectadas pelo motor de IA DocFlow.</p>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-lg rounded-[2.5rem] overflow-hidden shadow-[0_0_50px_rgba(225,29,72,0.3)] border-4 border-rose-600">
+            <div className="bg-rose-50 p-8 text-rose-600 text-center border-b border-rose-100">
+              <XCircle className="w-14 h-14 mx-auto mb-3" />
+              <h2 className="text-xl font-black uppercase tracking-tight">ATENÇÃO, REVISE OS DOCUMENTOS</h2>
+              <p className="text-[10px] font-bold text-rose-500 mt-1 leading-tight uppercase tracking-wider">Verifique se todos os documentos estão devidamente anexados antes de prosseguir.</p>
             </div>
             <div className="p-8">
               <div className="space-y-3 mb-8">
                 {validation.missingTypes.map(t => (
-                  <div key={t} className="flex items-center gap-3 text-xs font-bold text-rose-600 bg-rose-50 p-3 rounded-xl border border-rose-100">
-                    <XCircle className="w-4 h-4" /> Faltando documento: {t}
+                  <div key={t} className="flex items-center gap-3 text-xs font-bold text-rose-700 bg-rose-50 p-3 rounded-xl border border-rose-100">
+                    <AlertCircle className="w-4 h-4 shrink-0" /> Informação: Faltando documento: <span className="underline">{t}</span>
                   </div>
                 ))}
                 {validation.discrepancies.map((d, i) => (
                   <div key={i} className="flex items-start gap-3 text-xs font-bold text-amber-700 bg-amber-50 p-3 rounded-xl border border-amber-100">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /> {d}
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> {d}
                   </div>
                 ))}
+                
+                <div className="flex flex-col items-center gap-4 pt-4">
+                  <button 
+                    onClick={() => setShowHelpTooltip(!showHelpTooltip)}
+                    className="flex items-center gap-2 text-[11px] font-black text-brand-blue hover:text-brand-lightBlue transition-all group px-4 py-2 rounded-full hover:bg-brand-blue/5"
+                  >
+                    <HelpCircle className="w-5 h-5 text-rose-600 group-hover:scale-110 transition-transform" />
+                    ENTENDER O QUE ESTÁ PENDENTE
+                  </button>
+
+                  {showHelpTooltip && (
+                    <div className="w-full p-6 bg-slate-900 text-white text-[10px] rounded-[2rem] shadow-2xl animate-in fade-in slide-in-from-top-4 border border-slate-700">
+                      <div className="flex items-start gap-4 text-left">
+                        <Info className="w-6 h-6 text-brand-yellow shrink-0 mt-1" />
+                        <div className="space-y-3">
+                          <p className="font-black text-brand-yellow uppercase tracking-widest text-[11px]">Por que falta a Frase Padronizada?</p>
+                          <p className="opacity-90 leading-relaxed text-[11px] font-medium">
+                            Este documento contém a <b>anuência institucional e o aceite do conselho</b>. 
+                            Sem este selo de conformidade, o processo de auditoria do HPP não pode ser validado juridicamente.
+                          </p>
+                          <div className="h-px bg-slate-700 w-full" />
+                          <p className="opacity-90 leading-relaxed font-bold italic flex items-center gap-2">
+                            <CheckCircle className="w-3 h-3 text-brand-yellow" />
+                            Certifique-se de realizar o upload do arquivo contendo a declaração assinada.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="grid gap-3">
-                <button onClick={finalizeProcess} className="w-full bg-brand-blue text-white font-black py-4 rounded-2xl hover:bg-opacity-90 transition-all shadow-lg text-sm">PROSSEGUIR COM RESSALVAS (_pc)</button>
-                <button onClick={() => setShowWarningModal(false)} className="w-full bg-slate-100 text-slate-500 font-bold py-4 rounded-2xl hover:bg-slate-200 text-sm">CANCELAR E AJUSTAR</button>
+              
+              <div className="grid gap-3 pt-4">
+                <button onClick={finalizeProcess} className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-black transition-all shadow-lg text-sm flex items-center justify-center gap-2">
+                  <ArrowRight className="w-4 h-4 text-brand-yellow" /> PROSSEGUIR COM RESSALVAS (_pc)
+                </button>
+                <button onClick={() => { setShowWarningModal(false); setShowHelpTooltip(false); }} className="w-full bg-slate-100 text-slate-500 font-bold py-4 rounded-2xl hover:bg-slate-200 text-sm">CANCELAR E AJUSTAR</button>
               </div>
             </div>
           </div>
@@ -441,7 +562,7 @@ export default function App() {
                   <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
                     <div className="flex items-center gap-3">
                       <Layers className="w-5 h-5 text-brand-blue" />
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Fila de Identificação ({files.length})</span>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Fila de Documentos</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="relative group">
@@ -519,9 +640,14 @@ export default function App() {
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
               <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
                 <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-brand-blue text-white">
-                  <div className="flex items-center gap-3">
-                    <FileSearch className="w-5 h-5 text-brand-yellow" />
-                    <h3 className="font-black text-xs uppercase tracking-widest">Painel de Auditoria de Compliance</h3>
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-3">
+                      <FileSearch className="w-5 h-5 text-brand-yellow" />
+                      <h3 className="font-black text-xs uppercase tracking-widest">Painel de Conformidade e Auditoria</h3>
+                    </div>
+                    <p className="text-[10px] font-bold text-white/70 mt-1 leading-tight max-w-lg">
+                      Certifique-se de que os anexos correspondem à leitura da atividade solicitada antes de Unir os Documentos.
+                    </p>
                   </div>
                   {isProcessing && <Loader2 className="w-5 h-5 animate-spin text-brand-yellow" />}
                 </div>
@@ -567,9 +693,15 @@ export default function App() {
               </div>
 
               {!isProcessing && (
-                <div className="flex justify-center pt-4">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+                  <button 
+                    onClick={() => setStep('upload')}
+                    className="px-8 py-4 bg-slate-200 text-slate-600 rounded-3xl font-black text-xs hover:bg-slate-300 transition-all flex items-center gap-3"
+                  >
+                    <ArrowLeft className="w-4 h-4" /> VOLTAR E AJUSTAR
+                  </button>
                   <button onClick={handleRequestUnification} className="px-16 py-6 rounded-3xl font-black text-sm shadow-2xl transition-all flex items-center gap-4 group bg-brand-blue text-white hover:bg-opacity-90 hover:scale-105">
-                    UNIR DOCUMENTOS <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    <Files className="w-5 h-5 text-brand-yellow" /> UNIR DOCUMENTOS <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                   </button>
                 </div>
               )}
@@ -595,7 +727,14 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              <div className="mt-12"><button onClick={() => window.location.reload()} className="bg-slate-900 text-white px-12 py-5 rounded-3xl font-black text-sm hover:bg-black transition-all shadow-lg">NOVO FLUXO</button></div>
+              <div className="mt-12">
+                <button 
+                  onClick={resetFlow} 
+                  className="bg-slate-900 text-white px-12 py-5 rounded-3xl font-black text-sm hover:bg-black transition-all shadow-lg active:scale-95"
+                >
+                  NOVO FLUXO
+                </button>
+              </div>
             </div>
           )}
         </div>
