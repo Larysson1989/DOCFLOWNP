@@ -22,14 +22,14 @@ const INSTITUTIONAL_PHRASES = [
   "Curtimos a jornada com felicidade, celebrando conquistas e aprendizados."
 ];
 
-// Componente de Logo Institucional
+// Componente de Logo Institucional - Ajustado para melhor ocupação de espaço
 const LogoHPP = () => (
-  <div className="flex flex-col items-center">
-    <div className="group transition-transform duration-500">
+  <div className="flex flex-col items-center justify-center w-full">
+    <div className="group transition-all duration-500 hover:scale-105">
       <img 
         src="https://cbgolfe.com.br/wp-content/uploads/2017/12/logo-hpp-materia-site.jpg" 
         alt="Hospital Pequeno Príncipe" 
-        className="h-24 md:h-40 w-auto object-contain"
+        className="h-32 md:h-52 w-auto object-contain drop-shadow-sm"
       />
     </div>
   </div>
@@ -489,10 +489,10 @@ export default function App() {
             </div>
 
             {/* Conteúdo Principal: Logo Esquerda, Login Direita */}
-            <div className="flex flex-col md:flex-row items-center justify-center pb-20 px-10 md:px-20 gap-12 md:gap-24">
+            <div className="flex flex-col md:flex-row items-center justify-center pb-20 px-10 md:px-20 gap-12 md:gap-16">
               
-              {/* Logo à Esquerda */}
-              <div className="flex-1 flex justify-center md:justify-end">
+              {/* Área da Logo - Ajustada para melhor distribuição no espaço retangular */}
+              <div className="flex-1 flex justify-center items-center min-h-[200px]">
                 <LogoHPP />
               </div>
 
