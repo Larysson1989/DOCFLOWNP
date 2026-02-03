@@ -1,0 +1,5 @@
+{
+  "name": "DocFlow NP - Gestão e Unificação de Documentos",
+  "description": "Ferramenta institucional para unificação inteligente de documentos com geração automática de Borderô de Atividade e rastreabilidade via Gemini AI.",
+  "requestFramePermissions": []
+}
