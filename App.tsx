@@ -5,12 +5,35 @@ import {
   ShieldCheck, Layers, XCircle, FileSearch,
   AlertCircle, Zap, CheckCircle, AlertTriangle, Search,
   ChevronUp, ChevronDown, Lightbulb, Info, Plus, MessageCircle,
-  RefreshCw, Clock, ChevronRight, ArrowLeft, Files, HelpCircle, Lock, User
+  RefreshCw, Clock, ChevronRight, ArrowLeft, Files, HelpCircle, Lock, User, LogOut
 } from 'lucide-react';
 import { DocumentFile, ProcessingLog, DocCategory, ValidationResult } from './types';
 import { analyzeDocument } from './services/gemini';
 import { jsPDF } from "jspdf";
 import { PDFDocument } from "pdf-lib";
+
+const INSTITUTIONAL_PHRASES = [
+  "Somos um time, e juntos vamos cada vez mais longe.",
+  "Agimos com verdade e respeito, porque confiança é a base de tudo.",
+  "Prezamos pela humanização, colocando as pessoas no centro de cada ação.",
+  "Vestimos a camisa do Pequeno Príncipe, entregando o nosso melhor todos os dias.",
+  "Buscamos excelência contínua, evoluindo sempre um passo além.",
+  "Temos paixão pelo desafio, transformando obstáculos em oportunidades.",
+  "Curtimos a jornada com felicidade, celebrando conquistas e aprendizados."
+];
+
+// Componente de Logo Institucional
+const LogoHPP = () => (
+  <div className="flex flex-col items-center">
+    <div className="group transition-transform duration-500">
+      <img 
+        src="https://cbgolfe.com.br/wp-content/uploads/2017/12/logo-hpp-materia-site.jpg" 
+        alt="Hospital Pequeno Príncipe" 
+        className="h-24 md:h-40 w-auto object-contain"
+      />
+    </div>
+  </div>
+);
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -29,6 +52,30 @@ export default function App() {
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
   const [finalFileName, setFinalFileName] = useState<string>('');
 
+  // Ticker Logic
+  const [currentPhrase, setCurrentPhrase] = useState(INSTITUTIONAL_PHRASES[0]);
+  const [phraseOpacity, setPhraseOpacity] = useState(1);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const interval = setInterval(() => {
+      setPhraseOpacity(0);
+      setTimeout(() => {
+        setCurrentPhrase(prev => {
+          let next;
+          do {
+            next = INSTITUTIONAL_PHRASES[Math.floor(Math.random() * INSTITUTIONAL_PHRASES.length)];
+          } while (next === prev);
+          return next;
+        });
+        setPhraseOpacity(1);
+      }, 500);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
   const addLog = useCallback((message: string, type: ProcessingLog['type'] = 'info') => {
     setLogs(prev => [{
       timestamp: new Date().toLocaleTimeString(),
@@ -42,9 +89,17 @@ export default function App() {
     if (loginEmail === 'dev@lary.ia.br' && loginPassword === 'admin') {
       setIsAuthenticated(true);
       setLoginError('');
+      addLog("Usuário autenticado com sucesso.", "success");
     } else {
       setLoginError('Credenciais inválidas. Verifique os dados e tente novamente.');
     }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setLoginEmail('');
+    setLoginPassword('');
+    resetFlow();
   };
 
   const resetFlow = () => {
@@ -58,7 +113,6 @@ export default function App() {
     setShowHelpTooltip(false);
     setFinalFileName('');
     setExpandedCard(null);
-    addLog("Sistema reiniciado para novo fluxo.", "info");
   };
 
   const compressImage = (base64Str: string): Promise<string> => {
@@ -352,7 +406,7 @@ export default function App() {
     summaryDoc.setFont("helvetica", "normal");
     summaryDoc.setTextColor(148, 163, 184);
     summaryDoc.setFontSize(7);
-    const footerText = "DOCUMENTO GERADO PELO SISTEMA DOCFLOW NP - HPP. VALIDADE INSTITUCIONAL PARA FINS DE AUDITORIA.";
+    const footerText = "DOCUMENTO GERADO PELO SISTEMA DOC.FLOW NP - HPP. VALIDADE INSTITUCIONAL PARA FINS DE AUDITORIA.";
     summaryDoc.text(footerText, 15, 288);
 
     const summaryPdfBytes = summaryDoc.output('arraybuffer');
@@ -389,18 +443,18 @@ export default function App() {
 
   const manifestoCards = [
     {
-      title: "O que é o DocFlow NP?",
-      summary: "O DocFlow NP é uma ferramenta criada para organizar, registrar e dar rastreabilidade a processos documentais sensíveis...",
-      content: "O DocFlow NP é uma ferramenta de apoio institucional que organiza e registra atividades de unificação documental, especialmente em contextos que exigem responsabilidade, transparência e controle, como processos ligados a recursos públicos e impacto social."
+      title: "O que é o DOC.FLOW NP?",
+      summary: "O DOC.FLOW NP é uma ferramenta criada para organizar, registrar e dar rastreabilidade a processos documentais sensíveis...",
+      content: "O DOC.FLOW NP é uma ferramenta de apoio institucional que organiza e registra atividades de unificação documental, especialmente em contextos que exigem responsabilidade, transparência e controle, como processos ligados a recursos públicos e impacto social."
     },
     {
-      title: "O que o DocFlow faz?",
-      summary: "O DocFlow NP apoia a organização de documentos, registra atividades e reduz erros operacionais...",
+      title: "O que o DOC.FLOW faz?",
+      summary: "O DOC.FLOW NP apoia a organização de documentos, registra atividades e reduz erros operacionais...",
       content: "A ferramenta analisa documentos, identifica tipos documentais, apoia a unificação em PDF e registra a atividade realizada, gerando documentos institucionais como o Borderô de Atividade. É fundamental reforçar que a decisão final é sempre humana."
     },
     {
-      title: "O que o DocFlow NÃO faz?",
-      summary: "O DocFlow NP não substitui pessoas, nem assume decisões legais, fiscais ou contábeis...",
+      title: "O que o DOC.FLOW NÃO faz?",
+      summary: "O DOC.FLOW NP não substitui pessoas, nem assume decisões legais, fiscais ou contábeis...",
       content: "O sistema não valida juridicamente documentos, não substitui contadores, advogados ou Conselhos, e não decide pela completude ou correção das informações. Esta é uma escolha consciente de ética e governança institucional."
     },
     {
@@ -415,7 +469,7 @@ export default function App() {
     },
     {
       title: "O ecossistema Lary.IA",
-      summary: "O DocFlow NP faz parte do ecossistema Lary.IA, que cria soluções de IA com responsabilidade...",
+      summary: "O DOC.FLOW NP faz parte do ecossistema Lary.IA, que cria soluções de IA com responsabilidade...",
       content: "O Lary.IA utiliza a Inteligência Artificial como infraestrutura de confiança e apoio à decisão humana, focando na organização de processos complexos — nunca como uma substituição irresponsável de profissionais."
     }
   ];
@@ -423,69 +477,84 @@ export default function App() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 font-sans">
-        <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-500">
-          <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-slate-100 overflow-hidden">
-            <div className="p-10 text-center">
-              <img 
-                src="https://cbgolfe.com.br/wp-content/uploads/2017/12/logo-hpp-materia-site.jpg" 
-                alt="Hospital Pequeno Príncipe" 
-                className="h-24 mx-auto mb-8 object-contain"
-              />
-              <div className="space-y-2 mb-8">
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight uppercase">DocFlow <span className="text-brand-lightBlue">NP</span></h2>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Acesso Restrito ao Sistema</p>
+        <div className="w-full max-w-5xl animate-in fade-in zoom-in-95 duration-700">
+          <div className="bg-white rounded-[3rem] md:rounded-[4rem] shadow-[0_40px_100px_rgba(0,0,0,0.1)] border border-slate-100 overflow-hidden">
+            
+            {/* Header Centrado */}
+            <div className="pt-16 pb-8 flex flex-col items-center justify-center text-center px-6">
+              <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-slate-900 uppercase leading-none mb-2">
+                DOC.FLOW <span className="text-brand-lightBlue">NP</span>
+              </h1>
+              <div className="h-1.5 w-24 bg-brand-yellow rounded-full mb-8" />
+            </div>
+
+            {/* Conteúdo Principal: Logo Esquerda, Login Direita */}
+            <div className="flex flex-col md:flex-row items-center justify-center pb-20 px-10 md:px-20 gap-12 md:gap-24">
+              
+              {/* Logo à Esquerda */}
+              <div className="flex-1 flex justify-center md:justify-end">
+                <LogoHPP />
               </div>
 
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input 
-                    type="email" 
-                    placeholder="Usuário (E-mail)"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    required
-                    className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:outline-none focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/5 transition-all"
-                  />
-                </div>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input 
-                    type="password" 
-                    placeholder="Senha"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    required
-                    className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:outline-none focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/5 transition-all"
-                  />
-                </div>
-
-                {loginError && (
-                  <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl flex items-start gap-3 text-left animate-in shake-in duration-300">
-                    <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                    <p className="text-[10px] font-bold text-rose-600 leading-tight uppercase tracking-wider">{loginError}</p>
+              {/* Formulário à Direita */}
+              <div className="flex-1 w-full max-w-md">
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="relative group">
+                    <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-blue transition-colors">
+                      <User className="w-5 h-5" />
+                    </div>
+                    <input 
+                      type="email" 
+                      placeholder="Usuário (E-mail)"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      required
+                      className="w-full pl-14 pr-6 py-5 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-semibold focus:outline-none focus:bg-white focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/5 transition-all shadow-sm"
+                    />
                   </div>
-                )}
+                  <div className="relative group">
+                    <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-blue transition-colors">
+                      <Lock className="w-5 h-5" />
+                    </div>
+                    <input 
+                      type="password" 
+                      placeholder="Senha"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      required
+                      className="w-full pl-14 pr-6 py-5 bg-slate-50 border border-slate-100 rounded-3xl text-sm font-semibold focus:outline-none focus:bg-white focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/5 transition-all shadow-sm"
+                    />
+                  </div>
 
-                <button 
-                  type="submit"
-                  className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-black transition-all shadow-xl shadow-slate-900/10 flex items-center justify-center gap-3 text-sm group"
-                >
-                  ACESSAR FERRAMENTA <ChevronRight className="w-4 h-4 text-brand-yellow group-hover:translate-x-1 transition-transform" />
-                </button>
-              </form>
+                  {loginError && (
+                    <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center gap-3 animate-in shake-in duration-300">
+                      <XCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                      <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest">{loginError}</p>
+                    </div>
+                  )}
+
+                  <button 
+                    type="submit"
+                    className="w-full bg-slate-900 text-white font-black py-5 rounded-3xl hover:bg-black transition-all shadow-2xl shadow-slate-900/20 flex items-center justify-center gap-4 text-xs uppercase tracking-[0.2em] group active:scale-95"
+                  >
+                    ENTRAR NO SISTEMA <ChevronRight className="w-5 h-5 text-brand-yellow group-hover:translate-x-1 transition-transform" />
+                  </button>
+                </form>
+              </div>
+
             </div>
-            
-            <div className="bg-slate-50 p-6 text-center border-t border-slate-100">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
-                Ambiente de Gestão e Conformidade <br /> Hospital Pequeno Príncipe
+
+            {/* Footer do Card */}
+            <div className="bg-slate-900 p-8 text-center">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] leading-relaxed">
+                Hospital Pequeno Príncipe — <span className="text-brand-yellow">Excelência e Conformidade</span>
               </p>
             </div>
           </div>
         </div>
         
-        <footer className="mt-12 text-center">
-          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+        <footer className="mt-16 text-center">
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.5em] opacity-60">
             Todos os direitos reservados | Larysson Lara CNPJ 21.178.711/0001-20
           </p>
         </footer>
@@ -494,7 +563,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans overflow-x-hidden">
       {showManifesto && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-3xl rounded-[3rem] overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
@@ -503,7 +572,7 @@ export default function App() {
                 <XCircle className="w-8 h-8" />
               </button>
               <Lightbulb className="w-12 h-12 text-brand-yellow mb-4" />
-              <h2 className="text-3xl font-black uppercase tracking-tight">DocFlow NP</h2>
+              <h2 className="text-3xl font-black uppercase tracking-tight">DOC.FLOW NP</h2>
               <p className="text-white/70 font-medium text-sm">Criado no ecossistema Lary.IA</p>
               <p className="text-[10px] uppercase font-black tracking-widest text-brand-yellow/80 mt-2 italic">“Tecnologia que respeita processos, pessoas e responsabilidades.”</p>
             </div>
@@ -543,7 +612,7 @@ export default function App() {
 
             <div className="p-6 bg-white border-t border-slate-100 shrink-0">
               <a 
-                href="https://wa.me/5541997015424?text=Ol%C3%A1%2C%20quero%20falar%20sobre%20a%20Doc%20Flow%20NP" 
+                href="https://wa.me/5541997015424?text=Ol%C3%A1%2C%20quero%20falar%20sobre%20a%20DOC.FLOW%20NP" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-black transition-all flex items-center justify-center gap-3 text-xs shadow-xl"
@@ -618,109 +687,173 @@ export default function App() {
         </div>
       )}
 
-      <header className="bg-white border-b-4 border-brand-yellow shadow-sm h-20 flex-shrink-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-full flex items-center justify-between">
-          <div className="flex items-center gap-6">
+      {/* Header Compacto - DOC.FLOW NP */}
+      <header className="bg-white border-b-2 border-slate-100 shadow-sm h-16 flex-shrink-0 z-50 sticky top-0 px-4 md:px-12">
+        <div className="max-w-full mx-auto h-full flex items-center justify-between gap-8">
+          
+          <div className="flex items-center gap-4 shrink-0">
             <div className="flex flex-col">
-              <h1 className="text-xl font-black tracking-tighter text-brand-blue">DOCFLOW <span className="text-brand-lightBlue">NP</span></h1>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Gestão e Auditoria HPP</p>
+              <h1 className="text-xl font-black tracking-tighter text-slate-900 uppercase leading-none">
+                DOC.FLOW <span className="text-brand-lightBlue">NP</span>
+              </h1>
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Gestão e Auditoria HPP</p>
+            </div>
+            <div className="w-px h-8 bg-slate-100 ml-2 hidden sm:block" />
+          </div>
+
+          <div className="flex-1 text-center hidden md:flex items-center justify-center">
+             <div className="px-6 py-1.5 bg-slate-50/80 rounded-full border border-slate-100/50 max-w-2xl overflow-hidden">
+               <p 
+                 className="text-[10px] font-bold text-slate-500 italic transition-all duration-500 ease-in-out uppercase tracking-wide truncate"
+                 style={{ opacity: phraseOpacity }}
+               >
+                 {currentPhrase}
+               </p>
+             </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-col items-end px-3 border-r border-slate-100 mr-1 hidden sm:flex">
+              <span className="text-[7px] font-black text-slate-300 uppercase tracking-[0.2em] leading-none mb-1">Operador</span>
+              <span className="text-[10px] font-bold text-slate-600 leading-none lowercase">{loginEmail}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setShowManifesto(true)} 
+                className="w-9 h-9 bg-white hover:bg-slate-50 rounded-lg flex items-center justify-center transition-all group border border-slate-100"
+                title="Manifesto Doc.Flow"
+              >
+                <Lightbulb className="w-4 h-4 text-brand-blue group-hover:fill-brand-yellow transition-all" />
+              </button>
+              <button 
+                onClick={handleLogout} 
+                className="px-4 py-2 bg-slate-900 text-white hover:bg-black rounded-lg text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
+              >
+                <LogOut className="w-3 h-3" /> SAIR
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <button onClick={() => setShowManifesto(true)} className="w-12 h-12 bg-brand-yellow/10 hover:bg-brand-yellow/20 rounded-2xl flex items-center justify-center transition-all group border border-brand-yellow/20">
-              <Lightbulb className="w-6 h-6 text-brand-blue group-hover:fill-brand-yellow transition-all" />
-            </button>
-            <button onClick={() => setIsAuthenticated(false)} className="text-[10px] font-black text-slate-400 hover:text-rose-500 uppercase tracking-widest transition-colors flex items-center gap-2">
-              <XCircle className="w-4 h-4" /> SAIR
-            </button>
-          </div>
+        </div>
+        <div className="absolute bottom-0 left-0 w-full h-[2px] flex">
+          <div className="flex-1 bg-brand-blue" />
+          <div className="flex-1 bg-brand-yellow" />
+          <div className="flex-1 bg-brand-lightBlue" />
         </div>
       </header>
 
-      <main className="flex-1 max-w-4xl w-full mx-auto p-6 md:p-8 overflow-hidden">
-        <div className="flex flex-col gap-6 overflow-y-auto custom-scrollbar pr-2 h-full pb-10">
+      <main className="flex-1 w-full mx-auto p-4 md:p-8 overflow-hidden flex flex-col items-center">
+        <div className="flex flex-col gap-6 overflow-y-auto custom-scrollbar h-full pb-8 w-full max-w-7xl">
+          
           {step === 'upload' && (
-            <div className="animate-in slide-in-from-bottom-4 duration-500">
-              <div className="bg-white rounded-[3rem] border-4 border-dashed border-slate-200 p-12 text-center group hover:border-brand-blue hover:bg-brand-blue/[0.02] transition-all relative cursor-pointer shadow-sm">
-                <input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer z-20" />
-                <div className="w-20 h-20 bg-brand-blue/5 rounded-[2rem] flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform duration-300">
-                  <Upload className="w-10 h-10 text-brand-blue" />
+            <div className="animate-in slide-in-from-bottom-4 duration-500 flex flex-col gap-6 w-full items-center">
+              
+              <div className="relative group w-full">
+                <div className="bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 py-16 px-12 text-center hover:border-brand-blue hover:bg-brand-blue/[0.01] transition-all relative cursor-pointer shadow-sm overflow-hidden min-h-[300px] flex flex-col items-center justify-center">
+                  <input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer z-20" />
+                  
+                  <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#1064AE 1px, transparent 0)', backgroundSize: '32px 32px' }} />
+                  
+                  <div className="relative z-10 flex flex-col items-center text-center max-w-2xl">
+                    <div className="w-24 h-24 bg-brand-blue/5 rounded-[2rem] flex items-center justify-center group-hover:scale-110 transition-transform duration-500 mb-8 border border-brand-blue/10">
+                      <Upload className="w-12 h-12 text-brand-blue" />
+                    </div>
+                    
+                    <div>
+                      <h2 className="text-4xl font-black text-slate-900 tracking-tight mb-3 uppercase">Upload de Documentos</h2>
+                      <p className="text-slate-400 font-bold text-xs leading-relaxed uppercase tracking-[0.2em]">
+                        Arraste seus arquivos aqui ou clique para selecionar.
+                      </p>
+                      <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 bg-brand-blue/5 rounded-full border border-brand-blue/10">
+                        <Zap className="w-4 h-4 fill-brand-yellow text-brand-yellow animate-pulse" />
+                        <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest">
+                          Processamento via Lary.IA (Gemini 2.5)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <h2 className="text-3xl font-black text-slate-900 tracking-tight">Upload de Documentos</h2>
-                <p className="text-slate-500 mt-2 font-medium max-w-sm mx-auto text-xs leading-relaxed">Adicione seus arquivos para identificação imediata via Lary.IA.</p>
               </div>
 
               {files.length > 0 && (
-                <div className="mt-8 bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden animate-in fade-in duration-300">
-                  <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
-                    <div className="flex items-center gap-3">
-                      <Layers className="w-5 h-5 text-brand-blue" />
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Fila de Documentos</span>
+                <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden animate-in fade-in duration-500 w-full">
+                  <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row items-center justify-between gap-6 bg-slate-50/40">
+                    <div className="flex items-center gap-5">
+                      <div className="p-3 bg-brand-blue/10 rounded-2xl">
+                        <Layers className="w-6 h-6 text-brand-blue" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-300 leading-none mb-1">Fila de Conferência</span>
+                        <span className="text-sm font-black text-slate-700">{files.length} documento(s) em análise</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="relative group">
+                    <div className="flex items-center gap-3 w-full md:w-auto">
+                      <div className="relative group flex-1 md:flex-none">
                         <input type="file" multiple onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
-                        <button className="bg-slate-200 text-slate-600 px-5 py-3 rounded-full text-[9px] font-black hover:bg-slate-300 transition-all flex items-center gap-2">
-                          <Plus className="w-4 h-4" /> ADICIONAR
+                        <button className="w-full md:w-auto bg-slate-100 text-slate-500 px-6 py-4 rounded-2xl text-[10px] font-black hover:bg-slate-200 transition-all flex items-center justify-center gap-2 border border-slate-200 uppercase tracking-widest">
+                          <Plus className="w-4 h-4" /> NOVO ARQUIVO
                         </button>
                       </div>
                       <button 
                         onClick={startAutomation} 
                         disabled={files.some(f => f.status === 'processing' || f.status === 'pending')}
-                        className="bg-brand-blue text-white px-8 py-3 rounded-full text-[9px] font-black hover:scale-105 transition-transform shadow-lg shadow-brand-blue/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-1 md:flex-none bg-slate-900 text-white px-10 py-4 rounded-2xl text-[10px] font-black hover:bg-black transition-all shadow-xl flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-[0.2em]"
                       >
                         {files.some(f => f.status === 'processing' || f.status === 'pending') ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
-                          <Search className="w-4 h-4 text-brand-yellow" />
+                          <ShieldCheck className="w-4 h-4 text-brand-yellow" />
                         )} 
-                        INICIAR CONFERÊNCIA
+                        VALIDAR CONFORMIDADE
                       </button>
                     </div>
                   </div>
+                  
                   <div className="divide-y divide-slate-50 max-h-[500px] overflow-y-auto custom-scrollbar">
                     {files.map((doc, idx) => (
-                      <div key={doc.id} className={`p-5 flex items-center gap-5 group transition-colors ${doc.status === 'invalid' ? 'bg-rose-50/30' : 'hover:bg-slate-50'}`}>
-                        <div className="flex flex-col gap-1 shrink-0">
-                          <button disabled={idx === 0} onClick={() => moveFile(idx, 'up')} className="p-1 hover:bg-slate-200 rounded text-slate-400 disabled:opacity-30 transition-colors"><ChevronUp className="w-4 h-4" /></button>
-                          <button disabled={idx === files.length - 1} onClick={() => moveFile(idx, 'down')} className="p-1 hover:bg-slate-200 rounded text-slate-400 disabled:opacity-30 transition-colors"><ChevronDown className="w-4 h-4" /></button>
+                      <div key={doc.id} className={`p-5 flex items-center gap-6 group transition-colors ${doc.status === 'invalid' ? 'bg-rose-50/20' : 'hover:bg-slate-50/60'}`}>
+                        <div className="flex flex-col gap-1 shrink-0 opacity-20 group-hover:opacity-100 transition-opacity">
+                          <button disabled={idx === 0} onClick={() => moveFile(idx, 'up')} className="p-1 hover:bg-slate-200 rounded text-slate-400 disabled:opacity-20"><ChevronUp className="w-4 h-4" /></button>
+                          <button disabled={idx === files.length - 1} onClick={() => moveFile(idx, 'down')} className="p-1 hover:bg-slate-200 rounded text-slate-400 disabled:opacity-20"><ChevronDown className="w-4 h-4" /></button>
                         </div>
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${doc.status === 'invalid' ? 'bg-rose-100 text-rose-500' : 'bg-slate-100 text-slate-400 group-hover:text-brand-blue group-hover:bg-brand-blue/10'}`}>
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-all shadow-sm ${doc.status === 'invalid' ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-400 group-hover:text-brand-blue group-hover:bg-brand-blue/10'}`}>
                           {doc.status === 'processing' ? <Loader2 className="w-6 h-6 animate-spin" /> : <FileText className="w-6 h-6" />}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-black text-slate-800 truncate mb-0.5">{doc.file.name}</div>
-                          <div className="min-h-[20px] flex items-center gap-3">
+                          <div className="text-base font-black text-slate-800 truncate mb-1 uppercase tracking-tight">{doc.file.name}</div>
+                          <div className="min-h-[16px] flex items-center gap-3">
                             {doc.status === 'processing' || doc.status === 'pending' ? (
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest italic animate-pulse">
-                                  {doc.description?.includes('Quota') ? 'Sistema ocupado, aguardando...' : 'Identificando documento...'}
-                                </span>
-                                {doc.description?.includes('Quota') && <Clock className="w-3 h-3 text-brand-blue animate-bounce" />}
-                              </div>
+                              <span className="text-[10px] font-black text-brand-blue uppercase tracking-widest italic animate-pulse">
+                                Extraindo Metadados Técnicos...
+                              </span>
                             ) : doc.status === 'completed' ? (
-                              <div className="text-[11px] font-bold text-brand-lightBlue uppercase tracking-tight flex items-center gap-1.5">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                              <div className="text-[10px] font-bold text-brand-lightBlue uppercase tracking-widest flex items-center gap-2">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                                 {doc.description || doc.semanticType}
                               </div>
                             ) : (
                               <div className="flex items-center gap-2">
-                                <div className="text-[11px] font-black text-rose-600 uppercase tracking-tight flex items-center gap-1.5">
-                                  <XCircle className="w-3 h-3" />
-                                  DOCUMENTO NÃO IDENTIFICADO / INVÁLIDO
-                                </div>
-                                <button 
-                                  onClick={() => processFileAnalysis(doc)}
-                                  title="Tentar releitura do arquivo"
-                                  className="p-1.5 bg-rose-100 text-rose-600 hover:bg-rose-200 rounded-lg transition-colors shadow-sm border border-rose-200 group/btn"
-                                >
-                                  <RefreshCw className="w-3 h-3 group-hover/btn:rotate-180 transition-transform duration-500" />
-                                </button>
+                                <span className="text-[10px] font-black text-rose-600 uppercase flex items-center gap-1 tracking-widest">
+                                  <XCircle className="w-3.5 h-3.5" /> FALHA NA LEITURA
+                                </span>
+                                <button onClick={() => processFileAnalysis(doc)} className="text-[9px] font-black text-rose-600 hover:underline">REPROCESSAR</button>
                               </div>
                             )}
                           </div>
                         </div>
-                        <button onClick={() => setFiles(prev => prev.filter(f => f.id !== doc.id))} className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"><Trash2 className="w-5 h-5" /></button>
+                        
+                        {doc.extractedData?.value && doc.status === 'completed' && (
+                          <div className="hidden sm:flex flex-col items-end mr-6">
+                            <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-1">Valor Auditado</span>
+                            <span className="text-sm font-black text-slate-700">R$ {doc.extractedData.value.toFixed(2)}</span>
+                          </div>
+                        )}
+
+                        <button 
+                          onClick={() => setFiles(prev => prev.filter(f => f.id !== doc.id))} 
+                          className="p-4 text-slate-200 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"
+                        >
+                          <Trash2 className="w-6 h-6" />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -730,54 +863,57 @@ export default function App() {
           )}
 
           {step === 'processing' && (
-            <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
-              <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
-                <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-brand-blue text-white">
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-3">
-                      <FileSearch className="w-5 h-5 text-brand-yellow" />
-                      <h3 className="font-black text-xs uppercase tracking-widest">Painel de Conformidade e Auditoria</h3>
+            <div className="space-y-6 animate-in slide-in-from-right-4 duration-500 w-full">
+              <div className="bg-white rounded-[3rem] shadow-2xl border border-slate-100 overflow-hidden">
+                <div className="p-10 border-b border-slate-50 flex items-center justify-between bg-slate-900 text-white relative overflow-hidden">
+                  <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#FBDB14 1px, transparent 0)', backgroundSize: '24px 24px' }} />
+                  <div className="flex flex-col relative z-10">
+                    <div className="flex items-center gap-5">
+                      <div className="p-3 bg-brand-yellow/10 rounded-2xl border border-brand-yellow/20">
+                        <ShieldCheck className="w-8 h-8 text-brand-yellow" />
+                      </div>
+                      <div>
+                        <h3 className="font-black text-2xl uppercase tracking-tighter">Painel de Auditoria Cruzada</h3>
+                        <p className="text-[10px] font-bold text-white/40 mt-1 uppercase tracking-[0.3em]">
+                          Verificação de integridade documental e financeira
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-[10px] font-bold text-white/70 mt-1 leading-tight max-w-lg">
-                      Certifique-se de que os anexos correspondem à leitura da atividade solicitada antes de Unir os Documentos.
-                    </p>
                   </div>
-                  {isProcessing && <Loader2 className="w-5 h-5 animate-spin text-brand-yellow" />}
+                  {isProcessing && <Loader2 className="w-8 h-8 animate-spin text-brand-yellow" />}
                 </div>
+                
                 <div className="divide-y divide-slate-50">
                   {files.map((doc, idx) => (
-                    <div key={doc.id} className="p-6 flex items-start gap-6 hover:bg-slate-50/50 transition-colors">
-                      <div className="w-10 h-10 bg-slate-900 rounded-2xl flex items-center justify-center text-brand-yellow text-xs font-black shrink-0 shadow-lg">{idx + 1}</div>
+                    <div key={doc.id} className="p-8 flex items-start gap-8 hover:bg-slate-50/40 transition-colors">
+                      <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 text-sm font-black shrink-0 border border-slate-100 shadow-sm">{idx + 1}</div>
                       <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className="text-sm font-black text-slate-800">{doc.file.name}</div>
-                          <span className={`text-[9px] px-2.5 py-1 rounded-full font-black uppercase tracking-widest ${doc.status === 'invalid' ? 'bg-rose-500 text-white' : 'bg-brand-blue text-white'}`}>
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className="text-lg font-black text-slate-800 uppercase tracking-tight">{doc.file.name}</div>
+                          <span className={`text-[10px] px-3 py-1.5 rounded-lg font-black uppercase tracking-widest ${doc.status === 'invalid' ? 'bg-rose-100 text-rose-600' : 'bg-brand-blue/10 text-brand-blue'}`}>
                             {doc.semanticType}
                           </span>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-4">
                            {doc.extractedData?.donorName && (
-                             <div className="bg-slate-100 p-2.5 rounded-xl border border-slate-200">
-                               <p className="text-[9px] font-black text-slate-400 uppercase leading-none mb-1">Doador/Contribuinte</p>
-                               <p className="text-xs font-bold text-slate-700">{doc.extractedData.donorName}</p>
+                             <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Doador/Contribuinte</p>
+                               <p className="text-sm font-bold text-slate-700 truncate">{doc.extractedData.donorName}</p>
                              </div>
                            )}
                            {doc.extractedData?.value && (
-                             <div className="bg-slate-100 p-2.5 rounded-xl border border-slate-200">
-                               <p className="text-[9px] font-black text-slate-400 uppercase leading-none mb-1">Valor Auditado</p>
-                               <p className="text-xs font-bold text-brand-blue">R$ {doc.extractedData.value.toFixed(2)}</p>
+                             <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Montante Processado</p>
+                               <p className="text-sm font-black text-brand-blue">R$ {doc.extractedData.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                              </div>
                            )}
                         </div>
-                        <p className={`text-xs font-medium italic border-l-2 pl-3 ${doc.status === 'invalid' ? 'text-rose-500 border-rose-300' : 'text-slate-500 border-slate-200'}`}>
-                          {doc.description || "Análise detalhada concluída."}
-                        </p>
                       </div>
-                      <div className="pt-1">
+                      <div className="pt-2">
                         {doc.status === 'invalid' ? (
-                          <div className="bg-rose-100 p-2 rounded-full"><XCircle className="w-5 h-5 text-rose-500" /></div>
+                          <XCircle className="w-8 h-8 text-rose-300" />
                         ) : (
-                          <div className="bg-emerald-100 p-2 rounded-full"><CheckCircle2 className="w-5 h-5 text-emerald-600" /></div>
+                          <CheckCircle2 className="w-8 h-8 text-emerald-400" />
                         )}
                       </div>
                     </div>
@@ -786,15 +922,15 @@ export default function App() {
               </div>
 
               {!isProcessing && (
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-6">
                   <button 
                     onClick={() => setStep('upload')}
-                    className="px-8 py-4 bg-slate-200 text-slate-600 rounded-3xl font-black text-xs hover:bg-slate-300 transition-all flex items-center gap-3"
+                    className="px-10 py-5 bg-slate-100 text-slate-500 rounded-2xl font-black text-[11px] hover:bg-slate-200 transition-all flex items-center gap-3 uppercase tracking-[0.2em]"
                   >
-                    <ArrowLeft className="w-4 h-4" /> VOLTAR E AJUSTAR
+                    <ArrowLeft className="w-5 h-5" /> VOLTAR AO UPLOAD
                   </button>
-                  <button onClick={handleRequestUnification} className="px-16 py-6 rounded-3xl font-black text-sm shadow-2xl transition-all flex items-center gap-4 group bg-brand-blue text-white hover:bg-opacity-90 hover:scale-105">
-                    <Files className="w-5 h-5 text-brand-yellow" /> UNIR DOCUMENTOS <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  <button onClick={handleRequestUnification} className="px-20 py-6 rounded-[2rem] font-black text-sm shadow-2xl transition-all flex items-center gap-5 group bg-slate-900 text-white hover:bg-black hover:scale-[1.02] active:scale-95 uppercase tracking-[0.3em]">
+                    <Files className="w-6 h-6 text-brand-yellow" /> UNIFICAR E FINALIZAR <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
                   </button>
                 </div>
               )}
@@ -802,40 +938,43 @@ export default function App() {
           )}
 
           {step === 'finalized' && (
-            <div className="bg-white rounded-[3.5rem] shadow-2xl border-4 border-emerald-100 p-16 text-center animate-in zoom-in-95 duration-700">
-              <div className="w-24 h-24 bg-emerald-50 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 shadow-inner">
-                <CheckCircle className="w-12 h-12 text-emerald-500" />
+            <div className="bg-white rounded-[4rem] shadow-2xl border-4 border-emerald-50 p-16 md:p-24 text-center animate-in zoom-in-95 duration-700 w-full max-w-5xl mx-auto">
+              <div className="w-28 h-28 bg-emerald-50 rounded-[2.5rem] flex items-center justify-center mx-auto mb-10 shadow-inner relative">
+                <CheckCircle className="w-14 h-14 text-emerald-500" />
+                <div className="absolute -top-2 -right-2 bg-emerald-500 text-white p-2 rounded-xl shadow-lg">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
               </div>
-              <h2 className="text-4xl font-black text-slate-900 tracking-tight">Processo Finalizado!</h2>
-              <div className="mt-4 space-y-2">
-                <p className="text-slate-500 text-sm max-w-md mx-auto font-medium">O arquivo unificado com selo de auditoria institucional foi gerado com sucesso.</p>
-                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 inline-block text-left mt-6 shadow-sm">
-                  <div className="mb-2">
-                    <span className="text-[9px] font-black text-slate-400 uppercase block tracking-widest">Protocolo</span>
-                    <span className="font-mono font-black text-brand-blue text-lg">{protocol}</span>
+              <h2 className="text-5xl font-black text-slate-900 tracking-tighter mb-3 uppercase">Processo Finalizado!</h2>
+              <p className="text-slate-400 text-xs font-black uppercase tracking-[0.4em] mb-12">Compliance Documental Ativo</p>
+              
+              <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 text-left mb-12 shadow-inner">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  <div>
+                    <span className="text-[10px] font-black text-slate-300 uppercase block tracking-[0.3em] mb-3">Protocolo Gerado</span>
+                    <span className="font-mono font-black text-slate-900 text-2xl">{protocol}</span>
                   </div>
                   <div>
-                    <span className="text-[9px] font-black text-slate-400 uppercase block tracking-widest">Arquivo Final</span>
-                    <span className="font-mono font-bold text-slate-700 text-sm break-all">{finalFileName}.pdf</span>
+                    <span className="text-[10px] font-black text-slate-300 uppercase block tracking-[0.3em] mb-3">Arquivo de Saída</span>
+                    <span className="font-mono font-bold text-slate-500 text-sm break-all uppercase">{finalFileName}.pdf</span>
                   </div>
                 </div>
               </div>
-              <div className="mt-12">
-                <button 
-                  onClick={resetFlow} 
-                  className="bg-slate-900 text-white px-12 py-5 rounded-3xl font-black text-sm hover:bg-black transition-all shadow-lg active:scale-95"
-                >
-                  NOVO FLUXO
-                </button>
-              </div>
+
+              <button 
+                onClick={resetFlow} 
+                className="bg-brand-blue text-white px-16 py-6 rounded-[2rem] font-black text-xs hover:bg-slate-900 transition-all shadow-2xl active:scale-95 uppercase tracking-[0.3em]"
+              >
+                NOVA UNIFICAÇÃO
+              </button>
             </div>
           )}
         </div>
       </main>
 
       <footer className="bg-white border-t border-slate-100 py-6 shrink-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 text-center">
-          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+        <div className="max-w-7xl mx-auto px-10 text-center">
+          <p className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.5em]">
             Todos os direitos reservados | Larysson Lara CNPJ 21.178.711/0001-20
           </p>
         </div>
