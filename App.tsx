@@ -5,7 +5,7 @@ import {
   ShieldCheck, Layers, XCircle, FileSearch,
   AlertCircle, Zap, CheckCircle, AlertTriangle, Search,
   ChevronUp, ChevronDown, Lightbulb, Info, Plus, MessageCircle,
-  RefreshCw, Clock, ChevronRight, ArrowLeft, Files, HelpCircle
+  RefreshCw, Clock, ChevronRight, ArrowLeft, Files, HelpCircle, Lock, User
 } from 'lucide-react';
 import { DocumentFile, ProcessingLog, DocCategory, ValidationResult } from './types';
 import { analyzeDocument } from './services/gemini';
@@ -13,6 +13,11 @@ import { jsPDF } from "jspdf";
 import { PDFDocument } from "pdf-lib";
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  
   const [files, setFiles] = useState<DocumentFile[]>([]);
   const [logs, setLogs] = useState<ProcessingLog[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -31,6 +36,16 @@ export default function App() {
       type
     }, ...prev]);
   }, []);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loginEmail === 'dev@lary.ia.br' && loginPassword === 'admin') {
+      setIsAuthenticated(true);
+      setLoginError('');
+    } else {
+      setLoginError('Credenciais inválidas. Verifique os dados e tente novamente.');
+    }
+  };
 
   const resetFlow = () => {
     files.forEach(doc => URL.revokeObjectURL(doc.previewUrl));
@@ -405,6 +420,79 @@ export default function App() {
     }
   ];
 
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 font-sans">
+        <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-500">
+          <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-slate-100 overflow-hidden">
+            <div className="p-10 text-center">
+              <img 
+                src="https://cbgolfe.com.br/wp-content/uploads/2017/12/logo-hpp-materia-site.jpg" 
+                alt="Hospital Pequeno Príncipe" 
+                className="h-24 mx-auto mb-8 object-contain"
+              />
+              <div className="space-y-2 mb-8">
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight uppercase">DocFlow <span className="text-brand-lightBlue">NP</span></h2>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Acesso Restrito ao Sistema</p>
+              </div>
+
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input 
+                    type="email" 
+                    placeholder="Usuário (E-mail)"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    required
+                    className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:outline-none focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/5 transition-all"
+                  />
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input 
+                    type="password" 
+                    placeholder="Senha"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    required
+                    className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:outline-none focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/5 transition-all"
+                  />
+                </div>
+
+                {loginError && (
+                  <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl flex items-start gap-3 text-left animate-in shake-in duration-300">
+                    <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                    <p className="text-[10px] font-bold text-rose-600 leading-tight uppercase tracking-wider">{loginError}</p>
+                  </div>
+                )}
+
+                <button 
+                  type="submit"
+                  className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl hover:bg-black transition-all shadow-xl shadow-slate-900/10 flex items-center justify-center gap-3 text-sm group"
+                >
+                  ACESSAR FERRAMENTA <ChevronRight className="w-4 h-4 text-brand-yellow group-hover:translate-x-1 transition-transform" />
+                </button>
+              </form>
+            </div>
+            
+            <div className="bg-slate-50 p-6 text-center border-t border-slate-100">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
+                Ambiente de Gestão e Conformidade <br /> Hospital Pequeno Príncipe
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <footer className="mt-12 text-center">
+          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+            Todos os direitos reservados | Larysson Lara CNPJ 21.178.711/0001-20
+          </p>
+        </footer>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       {showManifesto && (
@@ -538,9 +626,14 @@ export default function App() {
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Gestão e Auditoria HPP</p>
             </div>
           </div>
-          <button onClick={() => setShowManifesto(true)} className="w-12 h-12 bg-brand-yellow/10 hover:bg-brand-yellow/20 rounded-2xl flex items-center justify-center transition-all group border border-brand-yellow/20">
-            <Lightbulb className="w-6 h-6 text-brand-blue group-hover:fill-brand-yellow transition-all" />
-          </button>
+          <div className="flex items-center gap-4">
+            <button onClick={() => setShowManifesto(true)} className="w-12 h-12 bg-brand-yellow/10 hover:bg-brand-yellow/20 rounded-2xl flex items-center justify-center transition-all group border border-brand-yellow/20">
+              <Lightbulb className="w-6 h-6 text-brand-blue group-hover:fill-brand-yellow transition-all" />
+            </button>
+            <button onClick={() => setIsAuthenticated(false)} className="text-[10px] font-black text-slate-400 hover:text-rose-500 uppercase tracking-widest transition-colors flex items-center gap-2">
+              <XCircle className="w-4 h-4" /> SAIR
+            </button>
+          </div>
         </div>
       </header>
 
