@@ -3,20 +3,16 @@ import { GoogleGenAI, Type } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-async function withRetry<T>(fn: () => Promise<T>, maxRetries = 5): Promise<T> {
+async function withFastRetry<T>(fn: () => Promise<T>, maxRetries = 2): Promise<T> {
   let lastError: any;
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
     } catch (error: any) {
       lastError = error;
-      const isQuotaError = error?.message?.includes('quota') || error?.status === 429;
-      
-      if (isQuotaError && i < maxRetries - 1) {
-        // Backoff exponencial: 2s, 4s, 8s, 16s...
-        const waitTime = Math.pow(2, i + 1) * 1000 + Math.random() * 1000;
-        console.warn(`Quota atingida. Tentativa ${i + 1} de ${maxRetries}. Aguardando ${waitTime}ms...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
+      const status = error?.status || (error as any)?.response?.status;
+      if (status === 429 || status === 500) {
+        await new Promise(resolve => setTimeout(resolve, 800));
         continue;
       }
       throw error;
@@ -25,18 +21,11 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries = 5): Promise<T> {
   throw lastError;
 }
 
-export async function analyzeDocument(base64Data: string, mimeType: string): Promise<{
-  semanticType: 'DARF' | 'COMPROVANTE' | 'FRASE_PADRONIZADA' | 'DESCONHECIDO';
-  description: string;
-  extractedData: {
-    donorName?: string;
-    value?: number;
-    date?: string;
-    identifier?: string;
-  };
-  confidence: number;
+export async function analyzeDocument(base64Data: string, mimeType: string, fileName: string): Promise<{
+  document_type: 'DARF' | 'COMPROVANTE' | 'EMAIL' | 'DESCONHECIDO';
+  status: 'validated' | 'invalid';
 }> {
-  return withRetry(async () => {
+  return withFastRetry(async () => {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: {
@@ -48,54 +37,36 @@ export async function analyzeDocument(base64Data: string, mimeType: string): Pro
             }
           },
           {
-            text: `Aja como um auditor de compliance rigoroso do Hospital Pequeno Príncipe. 
-            Analise este documento e forneça uma classificação detalhada e precisa.
-            
-            Para o campo 'description', use nomes institucionais como:
-            - "Documento de Arrecadação de Receitas Federais" (se for DARF puro)
-            - "Demonstrativo de Débitos da Declaração - Pagamentos" (se for o demonstrativo detalhado)
-            - "Comprovante de Arrecadação" (se for o ticket de banco do DARF)
-            - "Comprovante de Pagamento Bancário / PIX" (se for comprovante de transferência simples)
-            - "Frase Padronizada / Anuência Institucional" (se for texto/declaração)
-
-            Extraia também:
-            1. CLASSIFICAÇÃO SEMÂNTICA: DARF, COMPROVANTE, FRASE_PADRONIZADA ou DESCONHECIDO.
-            2. NOME DO DOADOR/CONTRIBUINTE.
-            3. VALOR (numérico).
-            4. DATA.
-            5. CPF/CNPJ.
-
-            Responda EXCLUSIVAMENTE em formato JSON.`
+            text: `Analise o arquivo: ${fileName}. Classifique apenas o tipo e valide se é um documento legível e autêntico.`
           }
         ]
       },
       config: {
+        systemInstruction: `Você é um classificador de documentos para o Hospital Pequeno Príncipe.
+        Identifique o tipo do documento e valide se ele parece completo.
+        TIPOS: DARF, COMPROVANTE, EMAIL ou DESCONHECIDO.
+        STATUS: validated (se legível e completo) ou invalid.
+        Responda APENAS JSON.`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            semanticType: {
+            document_type: {
               type: Type.STRING,
-              enum: ['DARF', 'COMPROVANTE', 'FRASE_PADRONIZADA', 'DESCONHECIDO']
+              enum: ['DARF', 'COMPROVANTE', 'EMAIL', 'DESCONHECIDO']
             },
-            description: { type: Type.STRING, description: "Nome institucional específico do documento." },
-            extractedData: {
-              type: Type.OBJECT,
-              properties: {
-                donorName: { type: Type.STRING },
-                value: { type: Type.NUMBER },
-                date: { type: Type.STRING },
-                identifier: { type: Type.STRING }
-              }
-            },
-            confidence: { type: Type.NUMBER }
+            status: {
+              type: Type.STRING,
+              enum: ['validated', 'invalid']
+            }
           },
-          required: ["semanticType", "description", "extractedData", "confidence"]
+          required: ["document_type", "status"]
         }
       }
     });
 
-    const jsonStr = (response.text || '{}').trim();
-    return JSON.parse(jsonStr);
+    const text = response.text;
+    if (!text) throw new Error("Resposta da API vazia");
+    return JSON.parse(text);
   });
 }

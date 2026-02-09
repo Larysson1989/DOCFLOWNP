@@ -30,6 +30,21 @@
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        /* Estilos para o visualizador de PDF */
+        .pdf-canvas-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+        }
+        .pdf-page-canvas {
+            max-width: 100%;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+            background: white;
+        }
     </style>
 <script type="importmap">
 {
@@ -40,7 +55,9 @@
     "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
     "@google/genai": "https://esm.sh/@google/genai@^1.39.0",
     "jspdf": "https://esm.sh/jspdf@^2.5.1",
-    "pdf-lib": "https://esm.sh/pdf-lib@^1.17.1"
+    "pdf-lib": "https://esm.sh/pdf-lib@^1.17.1",
+    "pdfjs-dist": "https://esm.sh/pdfjs-dist@4.10.38",
+    "pdfjs-dist/build/pdf.worker.mjs": "https://esm.sh/pdfjs-dist@4.10.38/build/pdf.worker.mjs"
   }
 }
 </script>
