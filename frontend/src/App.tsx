@@ -35,6 +35,15 @@ const INSTITUTIONAL_PHRASES = [
   "Buscamos excelência contínua, evoluindo sempre um passo além."
 ];
 
+declare global {
+  interface Window {
+    aistudio: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
+}
+
 const PDFCanvasViewer = ({ url }: { url: string }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -91,6 +100,13 @@ const PDFCanvasViewer = ({ url }: { url: string }) => {
   );
 };
 
+const CATEGORY_PRIORITY: Record<string, number> = {
+  'DARF': 1,
+  'Comprovante': 2,
+  'E-Mail': 3,
+  'Outros': 4
+};
+
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
@@ -109,8 +125,26 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showManifesto, setShowManifesto] = useState(false);
   const [errorModal, setErrorModal] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
+  const [hasApiKey, setHasApiKey] = useState(true);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const checkApiKey = async () => {
+      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        setHasApiKey(hasKey);
+      }
+    };
+    checkApiKey();
+  }, []);
+
+  const handleSelectKey = async () => {
+    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+      await window.aistudio.openSelectKey();
+      setHasApiKey(true);
+    }
+  };
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -145,9 +179,6 @@ export default function App() {
   const processDocument = async (doc: DocumentItem) => {
     setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, status: 'processing' } : d));
     
-    // Simular delay de processamento
-    await new Promise(r => setTimeout(r, 1500));
-
     try {
       const reader = new FileReader();
       const base64Raw = await new Promise<string>((resolve) => {
@@ -158,12 +189,33 @@ export default function App() {
       
       const result = await analyzeDocument(b64, doc.file.type, doc.file.name);
       
-      setDocuments(prev => prev.map(d => d.id === doc.id ? { 
-        ...d, 
-        status: 'done',
-        aiCategory: result.category,
-        aiConfidence: result.confidence
-      } : d));
+      setDocuments(prev => {
+        const updated = prev.map(d => d.id === doc.id ? { 
+          ...d, 
+          status: 'done',
+          aiCategory: result.category,
+          aiConfidence: result.confidence
+        } : d);
+
+        // Auto-sort based on priority after classification
+        return [...updated].sort((a, b) => {
+          const getPriority = (doc: DocumentItem) => {
+            if (doc.status !== 'done') return 99;
+            const cat = (doc.aiCategory || '').trim().toLowerCase();
+            if (cat.includes('darf')) return 1;
+            if (cat.includes('comprovante')) return 2;
+            if (cat.includes('mail')) return 3;
+            if (cat.includes('frase')) return 3;
+            return 4;
+          };
+
+          const pA = getPriority(a);
+          const pB = getPriority(b);
+          
+          if (pA !== pB) return pA - pB;
+          return a.originalIndex - b.originalIndex;
+        });
+      });
     } catch (err: any) {
       setDocuments(prev => prev.map(d => d.id === doc.id ? { 
         ...d, 
@@ -173,6 +225,31 @@ export default function App() {
     }
   };
 
+  const generatePdfThumbnail = async (file: File): Promise<string | undefined> => {
+    if (file.type !== 'application/pdf') return undefined;
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+      const page = await pdf.getPage(1);
+      const viewport = page.getViewport({ scale: 0.3 });
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      if (context) {
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        await page.render({ canvasContext: context, viewport: viewport }).promise;
+        const dataUrl = canvas.toDataURL();
+        // Clean up
+        pdf.destroy();
+        return dataUrl;
+      }
+    } catch (err) {
+      console.error("Error generating PDF thumbnail:", err);
+    }
+    return undefined;
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []) as File[];
     if (selectedFiles.length === 0) return;
@@ -180,9 +257,7 @@ export default function App() {
     const allowedTypes = [
       'application/pdf',
       'image/jpeg',
-      'image/png',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      'image/png'
     ];
 
     const newDocs: DocumentItem[] = [];
@@ -213,30 +288,36 @@ export default function App() {
     if (hasInvalid) {
       setErrorModal({ 
         show: true, 
-        message: 'Alguns arquivos possuem formatos não suportados. Por favor, utilize apenas PDF, JPG, PNG, DOCX ou XLSX.' 
+        message: 'Alguns arquivos possuem formatos não suportados. Por favor, utilize apenas PDF, JPG ou PNG.' 
       });
     }
 
     setDocuments(prev => [...prev, ...newDocs]);
     if (fileInputRef.current) fileInputRef.current.value = '';
 
-    // Iniciar análise automática para cada novo documento válido
+    // Generate thumbnails for PDFs
+    newDocs.filter(d => d.file.type === 'application/pdf').forEach(async (doc) => {
+      const thumb = await generatePdfThumbnail(doc.file);
+      if (thumb) {
+        setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, thumbnailUrl: thumb } : d));
+      }
+    });
+
+    // Iniciar análise automática em segundo plano para ordenação
     newDocs.filter(d => d.isValid).forEach(doc => {
       processDocument(doc);
     });
   };
 
   const moveFile = (index: number, direction: 'up' | 'down') => {
-    const newDocs = [...documents].sort((a, b) => a.originalIndex - b.originalIndex);
+    const newDocs = [...documents];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= newDocs.length) return;
     
-    // Swap originalIndex to maintain order
-    const temp = newDocs[index].originalIndex;
-    newDocs[index].originalIndex = newDocs[targetIndex].originalIndex;
-    newDocs[targetIndex].originalIndex = temp;
+    const [movedItem] = newDocs.splice(index, 1);
+    newDocs.splice(targetIndex, 0, movedItem);
     
-    setDocuments([...newDocs]);
+    setDocuments(newDocs);
   };
 
   const saveName = (id: string) => {
@@ -247,33 +328,24 @@ export default function App() {
   const handleProcessAll = async () => {
     setIsProcessing(true);
     try {
-      // Tornar o status "real e funcional": 
-      // Esperar até que todos os documentos válidos saiam do estado 'pending' ou 'processing'
+      // Esperar até que todos os documentos válidos sejam processados pela IA
       let allAnalyzed = false;
-      while (!allAnalyzed) {
-        // Pegamos o estado mais recente dos documentos
-        // Nota: Em React, acessar 'documents' aqui pode pegar um valor estável do fechamento.
-        // Vamos usar um padrão de verificação baseado no estado que o handleProcessAll recebeu
-        // mas idealmente verificaríamos o estado atualizado.
-        
-        // Para garantir funcionalidade real, vamos processar qualquer um que ainda esteja 'pending'
-        // e esperar os que estão 'processing'.
-        const currentDocs = documents; // Simplificação para o escopo do clique
+      let attempts = 0;
+      while (!allAnalyzed && attempts < 20) {
+        const currentDocs = documents; 
         const unfinished = currentDocs.filter(d => (d.status === 'pending' || d.status === 'processing') && d.isValid);
         
         if (unfinished.length === 0) {
           allAnalyzed = true;
         } else {
-          // Se o usuário clicou muito rápido, damos um tempo para a IA terminar
           await new Promise(r => setTimeout(r, 1000));
-          // Forçamos uma re-verificação (em uma app real usaríamos refs ou um gerenciador de estado mais complexo)
-          // Aqui, para o ambiente AI Studio, vamos assumir que o loop de processamento individual terminará.
-          allAnalyzed = true; // Prossegue após o wait para não travar o usuário infinitamente se algo falhar
+          attempts++;
         }
       }
 
       const mergedPdf = await PDFDocument.create();
-      const sortedDocs = [...documents].sort((a, b) => a.originalIndex - b.originalIndex);
+      // Use the documents array directly as it maintains the UI order
+      const sortedDocs = documents;
       
       for (const docItem of sortedDocs) {
         const arrayBuffer = await docItem.file.arrayBuffer();
@@ -297,13 +369,20 @@ export default function App() {
       const pdfBytes = await mergedPdf.save();
       const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
+      
+      // Get DARF name for the filename
+      const darfDoc = documents.find(d => (d.aiCategory || '').toLowerCase().includes('darf'));
+      const baseName = darfDoc 
+        ? darfDoc.customName.replace(/\.[^/.]+$/, "") 
+        : documents[0]?.customName.replace(/\.[^/.]+$/, "") || "Documento";
+      const fileName = `${baseName} Unificado.pdf`;
+
       const link = document.createElement('a');
       link.href = url;
-      link.download = `unificado_hpp_${Date.now()}.pdf`;
+      link.download = fileName;
       link.click();
       URL.revokeObjectURL(url);
 
-      // Também gerar o relatório (opcional, mas mantendo o protocolo)
       const proto = `HPP-UNIFY-${Date.now().toString(36).toUpperCase()}`;
       setProtocol(proto);
       
@@ -335,7 +414,12 @@ export default function App() {
 
           <div className="flex flex-col md:flex-row w-full items-center justify-between gap-12 mb-16 relative">
             <div className="flex-1 flex justify-center -translate-y-[15%]">
-              <img src="https://pequenoprincipe.org.br/pratodavida/_next/static/media/logo-cpp.5c32a9cc.png" alt="HPP" className="h-48 w-auto object-contain" />
+              <img 
+                src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQZ3shKbxmtt8-3491Yd_wsh0H313NXxRLr5w&s" 
+                alt="HPP" 
+                className="h-48 w-auto object-contain" 
+                referrerPolicy="no-referrer"
+              />
             </div>
             <div className="flex-1 max-w-sm w-full">
               <form onSubmit={handleLogin} className="space-y-4">
@@ -348,6 +432,20 @@ export default function App() {
                   <input type="password" required placeholder="••••••••" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} className="w-full pl-12 pr-6 py-4 bg-[#EBF2FF] rounded-2xl outline-none font-bold text-sm text-slate-700" />
                 </div>
                 {loginError && <p className="text-[10px] font-black text-rose-500 uppercase text-center">Credenciais incorretas</p>}
+                
+                {!hasApiKey && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl mb-4">
+                    <p className="text-[10px] font-bold text-amber-800 uppercase mb-2">Chave API necessária para classificação</p>
+                    <button 
+                      type="button"
+                      onClick={handleSelectKey}
+                      className="w-full bg-amber-500 text-white font-black py-2 rounded-xl text-[9px] uppercase tracking-widest hover:bg-amber-600 transition-colors"
+                    >
+                      Configurar Chave API
+                    </button>
+                  </div>
+                )}
+
                 <button type="submit" disabled={isLoggingIn} className="w-full bg-[#111827] text-white font-black py-5 rounded-2xl uppercase tracking-widest text-[11px] flex items-center justify-center gap-3 shadow-xl hover:bg-black transition-all">
                   {isLoggingIn ? <Loader2 className="animate-spin" size={16} /> : <>ENTRAR NO SISTEMA <ChevronRight size={16} className="text-brand-yellow" /></>}
                 </button>
@@ -360,6 +458,7 @@ export default function App() {
             </div>
           </div>
         </div>
+        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-4">Todos os direitos reservados ® Larysson Lara 21.178.711/0001-20</p>
       </div>
     );
   }
@@ -389,7 +488,7 @@ export default function App() {
               </div>
               <h2 className="text-xl font-black uppercase text-slate-800">Clique ou arraste documentos</h2>
               <div className="flex items-center justify-center gap-2 mt-2">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Formatos aceitos: PDF, JPG, PNG, DOCX, XLSX</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Formatos aceitos: PDF, JPG, PNG</p>
                 <div className="group/info relative z-20">
                   <Info size={14} className="text-slate-300 cursor-help" />
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-4 bg-slate-900 text-white text-[9px] rounded-2xl opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 shadow-2xl border border-white/10 text-left">
@@ -397,8 +496,6 @@ export default function App() {
                     <div className="grid grid-cols-1 gap-y-1.5 opacity-90">
                       <div>• PDF (Documentos Auditáveis)</div>
                       <div>• Imagens (JPG, PNG)</div>
-                      <div>• Word (.docx)</div>
-                      <div>• Excel (.xlsx)</div>
                     </div>
                   </div>
                 </div>
@@ -421,46 +518,96 @@ export default function App() {
                   </div>
                   <button onClick={() => setDocuments([])} className="text-rose-500 hover:scale-110 transition-transform"><Trash2 size={18}/></button>
                 </div>
-                <div className="divide-y divide-slate-50">
-                  {documents.sort((a, b) => a.originalIndex - b.originalIndex).map((doc, index) => (
-                    <div key={doc.id} className={`p-4 flex items-center gap-4 group hover:bg-slate-50/50 transition-all ${!doc.isValid ? 'bg-rose-50/50' : ''}`}>
+                <div className="divide-y divide-slate-100">
+                  {documents.map((doc, index) => (
+                    <div key={doc.id} className={`p-5 flex items-center gap-6 group hover:bg-slate-50/80 transition-all relative ${!doc.isValid ? 'bg-rose-50/30' : ''}`}>
+                      {/* Coluna de Ordenação */}
                       <div className="flex flex-col gap-1">
-                        <button disabled={index === 0} title="Subir" onClick={() => moveFile(index, 'up')} className="text-slate-300 hover:text-[#1064AE] disabled:opacity-20 transition-colors"><ChevronUp size={16} /></button>
-                        <button disabled={index === documents.length - 1} title="Descer" onClick={() => moveFile(index, 'down')} className="text-slate-300 hover:text-[#1064AE] disabled:opacity-20 transition-colors"><ChevronDown size={16} /></button>
+                        <button 
+                          disabled={index === 0} 
+                          onClick={() => moveFile(index, 'up')} 
+                          className="p-1.5 text-black hover:text-[#1064AE] hover:bg-white rounded-md shadow-sm disabled:opacity-0 transition-all"
+                        >
+                          <ChevronUp size={18} strokeWidth={3} />
+                        </button>
+                        <button 
+                          disabled={index === documents.length - 1} 
+                          onClick={() => moveFile(index, 'down')} 
+                          className="p-1.5 text-black hover:text-[#1064AE] hover:bg-white rounded-md shadow-sm disabled:opacity-0 transition-all"
+                        >
+                          <ChevronDown size={18} strokeWidth={3} />
+                        </button>
                       </div>
-                      <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">
-                        {doc.status === 'processing' ? <Loader2 className="animate-spin text-[#1064AE]" size={18} /> : 
-                         doc.status === 'done' ? <CheckCircle2 className="text-emerald-500" size={20} /> : 
-                         doc.status === 'error' || !doc.isValid ? <AlertCircle className="text-rose-500" size={20} /> : 
-                         <FileText className="text-slate-300" size={20} />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        {editingId === doc.id ? (
-                          <div className="flex items-center gap-2">
-                            <input autoFocus value={tempName} onChange={e => setTempName(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveName(doc.id)} className="flex-1 bg-slate-50 border-2 border-[#1064AE]/20 rounded-lg px-2 py-1 text-xs font-bold outline-none" />
-                            <button onClick={() => saveName(doc.id)} className="bg-[#1064AE] text-white p-1 rounded hover:bg-slate-900"><Check size={14}/></button>
-                          </div>
+
+                      {/* Miniatura / Preview */}
+                      <div className="relative w-20 h-24 bg-slate-100 rounded-xl overflow-hidden border border-slate-200 shadow-inner shrink-0 group/thumb">
+                        {doc.file.type.startsWith('image/') ? (
+                          <img src={doc.previewUrl} className="w-full h-full object-cover" alt="Preview" />
+                        ) : doc.thumbnailUrl ? (
+                          <img src={doc.thumbnailUrl} className="w-full h-full object-cover" alt="Preview" />
                         ) : (
-                          <div className="flex items-center gap-2">
-                            <h4 className="text-xs font-black uppercase text-slate-700 truncate">{doc.customName}</h4>
-                            <button onClick={() => { setEditingId(doc.id); setTempName(doc.customName); }} title="Editar nome" className="p-1.5 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all"><Edit2 size={14}/></button>
+                          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50">
+                            <FileText className="text-slate-300" size={32} />
+                            <span className="text-[8px] font-black text-slate-400 uppercase mt-1">PDF</span>
                           </div>
                         )}
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${doc.aiCategory ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
-                            {doc.status === 'processing' ? 'Processando...' : doc.aiCategory || 'Aguardando'}
-                          </span>
-                          {doc.aiConfidence !== undefined && (
-                            <span className="text-[8px] font-bold text-slate-400">{(doc.aiConfidence * 100).toFixed(0)}% confiança</span>
+                        
+                        {/* Overlay de Status */}
+                        {doc.status === 'processing' && (
+                          <div className="absolute inset-0 bg-[#1064AE]/40 backdrop-blur-[2px] flex items-center justify-center">
+                            <Loader2 className="animate-spin text-white" size={24} />
+                          </div>
+                        )}
+                        
+                        <button 
+                          onClick={() => setPreviewFile(doc)}
+                          className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity"
+                        >
+                          <Eye className="text-white" size={20} />
+                        </button>
+                      </div>
+
+                      {/* Informações */}
+                      <div className="flex-1 min-w-0 py-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          {editingId === doc.id ? (
+                            <div className="flex items-center gap-2 flex-1">
+                              <input 
+                                autoFocus 
+                                value={tempName} 
+                                onChange={e => setTempName(e.target.value)} 
+                                onKeyDown={e => e.key === 'Enter' && saveName(doc.id)} 
+                                className="flex-1 bg-white border-2 border-[#1064AE] rounded-xl px-3 py-1.5 text-xs font-bold outline-none shadow-lg" 
+                              />
+                              <button onClick={() => saveName(doc.id)} className="bg-[#1064AE] text-white p-2 rounded-xl hover:bg-slate-900 shadow-md"><Check size={16}/></button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 group/name">
+                              <h4 className="text-sm font-black uppercase text-slate-800 break-words">{doc.customName}</h4>
+                              <button onClick={() => { setEditingId(doc.id); setTempName(doc.customName); }} className="opacity-0 group-hover/name:opacity-100 p-1 text-slate-400 hover:text-[#1064AE] transition-all"><Edit2 size={14}/></button>
+                            </div>
                           )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
                           {!doc.isValid && (
-                            <span className="text-[8px] font-black text-rose-500 uppercase">Formato Inválido</span>
+                            <div className="flex items-center gap-1.5 px-3 py-1 bg-rose-50 border border-rose-200 text-rose-600 rounded-full">
+                              <AlertTriangle size={10} />
+                              <span className="text-[9px] font-black uppercase tracking-wider">Formato Não Suportado</span>
+                            </div>
                           )}
                         </div>
                       </div>
+
+                      {/* Ações Rápidas */}
                       <div className="flex items-center gap-2">
-                        <button onClick={() => setPreviewFile(doc)} title="Visualizar" className="p-2.5 text-[#1064AE] bg-slate-100 hover:bg-slate-200 rounded-xl transition-all shadow-sm"><Eye size={20} /></button>
-                        <button onClick={() => removeFile(doc.id)} title="Excluir" className="p-2.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-all shadow-sm"><Trash2 size={20} /></button>
+                        <button 
+                          onClick={() => removeFile(doc.id)} 
+                          className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"
+                          title="Remover"
+                        >
+                          <Trash2 size={20} />
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -468,14 +615,16 @@ export default function App() {
               </div>
             )}
 
-            <button 
-              disabled={documents.length === 0 || isProcessing || hasInvalidFiles}
-              onClick={handleProcessAll}
-              className="w-full bg-[#1064AE] hover:bg-[#0d528f] text-white p-6 rounded-[2rem] shadow-xl transition-all flex items-center justify-center gap-4 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isProcessing ? <Loader2 className="animate-spin" size={24} /> : <Files size={24} />}
-              <span className="font-black uppercase tracking-widest text-sm">Unir Documentos</span>
-            </button>
+            {documents.length > 0 && (
+              <button 
+                disabled={isProcessing || hasInvalidFiles}
+                onClick={handleProcessAll}
+                className="w-full bg-[#1064AE] hover:bg-[#0d528f] text-white p-6 rounded-[2rem] shadow-xl transition-all flex items-center justify-center gap-4 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isProcessing ? <Loader2 className="animate-spin" size={24} /> : <Files size={24} />}
+                <span className="font-black uppercase tracking-widest text-sm">Unir Documentos</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -545,7 +694,7 @@ export default function App() {
       )}
 
       <footer className="bg-white border-t py-6 text-center mt-auto">
-         <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.4em]">© {new Date().getFullYear()} Compliance Digital | Hospital Pequeno Príncipe</p>
+         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Todos os direitos reservados ® Larysson Lara 21.178.711/0001-20</p>
       </footer>
     </div>
   );

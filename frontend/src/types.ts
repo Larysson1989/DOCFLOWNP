@@ -10,6 +10,7 @@ export type DocumentItem = {
   aiConfidence?: number;
   isValid: boolean;
   previewUrl: string;
+  thumbnailUrl?: string;
   customName: string;
   errorMessage?: string;
 };
