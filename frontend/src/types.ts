@@ -1,5 +1,15 @@
 
-export type DocCategory = 'DARF' | 'Comprovante' | 'Email' | 'Outros';
+export type DocCategory = 'DARF' | 'Comprovante' | 'E-Mail' | 'Outros';
+
+export type DarfData = {
+  cpfCnpj?: string;
+  nome?: string;
+  periodoApuracao?: string;
+  vencimento?: string;
+  numeroDocumento?: string;
+  valorTotal?: string;
+  codigoReceita?: string;
+};
 
 export type DocumentItem = {
   id: string;
@@ -8,6 +18,7 @@ export type DocumentItem = {
   status: "pending" | "processing" | "done" | "error";
   aiCategory?: string;
   aiConfidence?: number;
+  aiData?: DarfData;
   isValid: boolean;
   previewUrl: string;
   thumbnailUrl?: string;

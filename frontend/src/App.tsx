@@ -17,7 +17,7 @@ import { PDFDocument } from 'pdf-lib';
 import { jsPDF } from 'jspdf';
 
 // Configuração do worker do PDF.js
-pdfjs.GlobalWorkerOptions.workerSrc = "https://esm.sh/pdfjs-dist@4.10.38/build/pdf.worker.mjs";
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
 
 const AUTHORIZED_USERS = [
   { email: 'dev@lary.ia.br', password: 'admin' },
@@ -176,28 +176,94 @@ export default function App() {
     }, 800);
   };
 
+  const [processingQueue, setProcessingQueue] = useState<string[]>([]);
+  const MAX_CONCURRENT = 2; // Reduzido para 2 para garantir estabilidade total e evitar timeouts
+
+  // Gerenciador de fila robusto
+  useEffect(() => {
+    const pendingDocs = documents.filter(d => d.status === 'pending' && d.isValid);
+    const activeDocs = documents.filter(d => d.status === 'processing');
+    
+    if (activeDocs.length < MAX_CONCURRENT && pendingDocs.length > 0) {
+      // Pega o próximo que não está sendo processado nem está na fila de sinalização
+      const next = pendingDocs.find(d => !processingQueue.includes(d.id));
+      if (next) {
+        setProcessingQueue(prev => [...prev, next.id]);
+        processDocument(next);
+      }
+    }
+  }, [documents, processingQueue]);
+
   const processDocument = async (doc: DocumentItem) => {
+    // Atualiza status para processando imediatamente
     setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, status: 'processing' } : d));
     
+    // Timeout de segurança para não travar a fila (120s)
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("Tempo limite de análise excedido (120s)")), 120000)
+    );
+
     try {
-      const reader = new FileReader();
-      const base64Raw = await new Promise<string>((resolve) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsDataURL(doc.file);
-      });
-      const b64 = base64Raw.split(',')[1];
+      console.log(`[Queue] Iniciando: ${doc.file.name}`);
+      const startTime = Date.now();
       
-      const result = await analyzeDocument(b64, doc.file.type, doc.file.name);
+      let b64 = '';
+      let mimeType = doc.file.type;
+
+      // Lógica de extração de imagem do PDF
+      if (doc.file.type === 'application/pdf') {
+        const convertPromise = (async () => {
+          const arrayBuffer = await doc.file.arrayBuffer();
+          const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+          const pdf = await loadingTask.promise;
+          const page = await pdf.getPage(1);
+          const viewport = page.getViewport({ scale: 1.2 }); // Reduzido de 2.0 para 1.2 para maior velocidade de upload
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          if (!context) throw new Error("Erro ao criar contexto canvas");
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+          await page.render({ canvasContext: context, viewport: viewport }).promise;
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7); // Qualidade ligeiramente menor para reduzir tamanho do payload
+          pdf.destroy();
+          return dataUrl.split(',')[1];
+        })();
+        
+        b64 = await Promise.race([convertPromise, timeoutPromise]) as string;
+        mimeType = 'image/jpeg';
+      } else {
+        const reader = new FileReader();
+        const readPromise = new Promise<string>((resolve) => {
+          reader.onload = () => resolve((reader.result as string).split(',')[1]);
+          reader.readAsDataURL(doc.file);
+        });
+        b64 = await Promise.race([readPromise, timeoutPromise]) as string;
+      }
+      
+      const result = await Promise.race([
+        analyzeDocument(b64, mimeType, doc.file.name),
+        timeoutPromise
+      ]) as any;
+
+      console.log(`[Queue] Sucesso: ${doc.file.name} -> ${result.suggestedName} (${((Date.now() - startTime)/1000).toFixed(1)}s)`);
       
       setDocuments(prev => {
-        const updated = prev.map(d => d.id === doc.id ? { 
-          ...d, 
-          status: 'done',
-          aiCategory: result.category,
-          aiConfidence: result.confidence
-        } : d);
+        const updated = prev.map(d => {
+          if (d.id === doc.id) {
+            const newName = result.suggestedName || d.customName;
+            console.log(`[Queue] Aplicando nome: ${newName} para ${doc.id}`);
+            return { 
+              ...d, 
+              status: 'done',
+              aiCategory: result.category,
+              aiConfidence: result.confidence,
+              aiData: result.data,
+              customName: newName
+            };
+          }
+          return d;
+        });
 
-        // Auto-sort based on priority after classification
         return [...updated].sort((a, b) => {
           const getPriority = (doc: DocumentItem) => {
             if (doc.status !== 'done') return 99;
@@ -205,28 +271,29 @@ export default function App() {
             if (cat.includes('darf')) return 1;
             if (cat.includes('comprovante')) return 2;
             if (cat.includes('mail')) return 3;
-            if (cat.includes('frase')) return 3;
             return 4;
           };
-
           const pA = getPriority(a);
           const pB = getPriority(b);
-          
           if (pA !== pB) return pA - pB;
           return a.originalIndex - b.originalIndex;
         });
       });
     } catch (err: any) {
+      console.error(`[Queue] Erro em ${doc.file.name}:`, err.message);
       setDocuments(prev => prev.map(d => d.id === doc.id ? { 
         ...d, 
         status: 'error', 
         errorMessage: err?.message || "Erro na análise." 
       } : d));
+    } finally {
+      setProcessingQueue(prev => prev.filter(id => id !== doc.id));
     }
   };
 
   const generatePdfThumbnail = async (file: File): Promise<string | undefined> => {
     if (file.type !== 'application/pdf') return undefined;
+    console.log(`[Thumb] Gerando miniatura para: ${file.name}`);
     try {
       const arrayBuffer = await file.arrayBuffer();
       const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
@@ -239,13 +306,13 @@ export default function App() {
         canvas.height = viewport.height;
         canvas.width = viewport.width;
         await page.render({ canvasContext: context, viewport: viewport }).promise;
-        const dataUrl = canvas.toDataURL();
-        // Clean up
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+        console.log(`[Thumb] Miniatura gerada com sucesso.`);
         pdf.destroy();
         return dataUrl;
       }
     } catch (err) {
-      console.error("Error generating PDF thumbnail:", err);
+      console.error("[Thumb] Erro ao gerar miniatura do PDF:", err);
     }
     return undefined;
   };
@@ -301,11 +368,6 @@ export default function App() {
       if (thumb) {
         setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, thumbnailUrl: thumb } : d));
       }
-    });
-
-    // Iniciar análise automática em segundo plano para ordenação
-    newDocs.filter(d => d.isValid).forEach(doc => {
-      processDocument(doc);
     });
   };
 
@@ -582,9 +644,20 @@ export default function App() {
                               <button onClick={() => saveName(doc.id)} className="bg-[#1064AE] text-white p-2 rounded-xl hover:bg-slate-900 shadow-md"><Check size={16}/></button>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-2 group/name">
-                              <h4 className="text-sm font-black uppercase text-slate-800 break-words">{doc.customName}</h4>
-                              <button onClick={() => { setEditingId(doc.id); setTempName(doc.customName); }} className="opacity-0 group-hover/name:opacity-100 p-1 text-slate-400 hover:text-[#1064AE] transition-all"><Edit2 size={14}/></button>
+                            <div className="flex flex-col gap-0.5 group/name">
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-black text-slate-800 truncate max-w-md" title={doc.customName}>
+                                  {doc.customName}
+                                </h4>
+                                <button onClick={() => { setEditingId(doc.id); setTempName(doc.customName); }} className="opacity-0 group-hover/name:opacity-100 p-1 text-slate-400 hover:text-[#1064AE] transition-all shrink-0">
+                                  <Edit2 size={14}/>
+                                </button>
+                              </div>
+                              {(doc.customName !== doc.file.name) && (
+                                <span className="text-[10px] font-medium text-slate-400 truncate max-w-xs italic" title={doc.file.name}>
+                                  {doc.file.name}
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
@@ -594,6 +667,27 @@ export default function App() {
                             <div className="flex items-center gap-1.5 px-3 py-1 bg-rose-50 border border-rose-200 text-rose-600 rounded-full">
                               <AlertTriangle size={10} />
                               <span className="text-[9px] font-black uppercase tracking-wider">Formato Não Suportado</span>
+                            </div>
+                          )}
+                          
+                          {doc.aiCategory === 'DARF' && doc.aiData && (
+                            <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 bg-slate-50 p-3 rounded-xl border border-slate-100 w-full">
+                              <div className="flex flex-col">
+                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Contribuinte</span>
+                                <span className="text-[10px] font-black text-slate-700 truncate">{doc.aiData.nome || 'N/A'}</span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">CPF/CNPJ</span>
+                                <span className="text-[10px] font-black text-slate-700">{doc.aiData.cpfCnpj || 'N/A'}</span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Vencimento</span>
+                                <span className="text-[10px] font-black text-slate-700">{doc.aiData.vencimento || 'N/A'}</span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Valor</span>
+                                <span className="text-[10px] font-black text-emerald-600">R$ {doc.aiData.valorTotal || '0,00'}</span>
+                              </div>
                             </div>
                           )}
                         </div>
