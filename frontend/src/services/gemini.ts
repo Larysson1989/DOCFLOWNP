@@ -14,6 +14,12 @@ async function withFastRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
   throw lastError;
 }
 
+let customApiKey: string | null = null;
+
+export function setCustomApiKey(key: string) {
+  customApiKey = key;
+}
+
 export async function analyzeDocument(base64Data: string, mimeType: string, fileName: string): Promise<{
   category: string;
   confidence: number;
@@ -29,8 +35,8 @@ export async function analyzeDocument(base64Data: string, mimeType: string, file
   };
 }> {
   return withFastRetry(async () => {
-    // Check for both possible environment variables for the API key
-    const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+    // Check for both possible environment variables for the API key or custom key
+    const apiKey = customApiKey || process.env.API_KEY || process.env.GEMINI_API_KEY;
     
     if (!apiKey) {
       throw new Error("Chave API não configurada. Por favor, configure a chave no login.");

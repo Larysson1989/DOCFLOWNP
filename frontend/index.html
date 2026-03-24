@@ -5,47 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DocFlow Automation - HPP</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📄</text></svg>">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              brand: {
-                yellow: '#FBDB14',
-                blue: '#1064AE',
-                lightBlue: '#2284BD',
-              }
-            },
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-            }
-          }
-        }
-      }
-    </script>
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        
-        /* Estilos para o visualizador de PDF */
-        .pdf-canvas-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 1rem;
-            padding: 1rem;
-        }
-        .pdf-page-canvas {
-            max-width: 100%;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-            border-radius: 4px;
-            background: white;
-        }
-    </style>
 <script type="importmap">
 {
   "imports": {
@@ -61,7 +22,6 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased">
     <div id="root"></div>
