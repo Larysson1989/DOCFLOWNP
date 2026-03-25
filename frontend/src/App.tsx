@@ -10,7 +10,7 @@ import {
   Heart, Crown, Activity, Baby, Sun, Sparkles, Info
 } from 'lucide-react';
 import { DocumentItem, DocCategory } from './types';
-import { analyzeDocument, setCustomApiKey } from './services/gemini';
+import { analyzeDocument } from './services/gemini';
 import { convertToPdf } from './services/converter';
 import * as pdfjs from "pdfjs-dist";
 import { PDFDocument } from 'pdf-lib';
@@ -125,49 +125,8 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showManifesto, setShowManifesto] = useState(false);
   const [errorModal, setErrorModal] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
-  const [hasApiKey, setHasApiKey] = useState(true);
-  const [userApiKey, setUserApiKey] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const checkApiKey = async () => {
-      // 1. Check AI Studio environment
-      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        setHasApiKey(hasKey);
-        return;
-      }
-
-      // 2. Check environment variable (Vite defines this)
-      const envKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
-      if (envKey) {
-        setHasApiKey(true);
-        return;
-      }
-
-      // 3. Check localStorage
-      const savedKey = localStorage.getItem('GEMINI_API_KEY');
-      if (savedKey) {
-        setUserApiKey(savedKey);
-        setCustomApiKey(savedKey);
-        setHasApiKey(true);
-        return;
-      }
-
-      setHasApiKey(false);
-    };
-    checkApiKey();
-  }, []);
-
-  const handleSaveApiKey = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (userApiKey.trim()) {
-      setCustomApiKey(userApiKey.trim());
-      localStorage.setItem('GEMINI_API_KEY', userApiKey.trim());
-      setHasApiKey(true);
-    }
-  };
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -518,42 +477,6 @@ export default function App() {
                 </div>
                 {loginError && <p className="text-[10px] font-black text-rose-500 uppercase text-center">Credenciais incorretas</p>}
                 
-                {!hasApiKey && (
-                  <div className="p-6 bg-amber-50 border-2 border-amber-200 rounded-[2rem] mb-6 shadow-inner">
-                    <div className="flex items-center gap-3 mb-4">
-                      <Zap className="text-amber-500" size={20} />
-                      <p className="text-[11px] font-black text-amber-800 uppercase tracking-tight">Configuração de IA Necessária</p>
-                    </div>
-                    <p className="text-[10px] text-amber-700 font-medium leading-relaxed mb-4">
-                      Para classificar e renomear seus documentos automaticamente, é necessário configurar uma chave da API Gemini.
-                    </p>
-                    <div className="space-y-3">
-                      <input 
-                        type="password" 
-                        placeholder="Insira sua Gemini API Key" 
-                        value={userApiKey}
-                        onChange={e => setUserApiKey(e.target.value)}
-                        className="w-full px-4 py-3 bg-white border border-amber-200 rounded-xl outline-none font-bold text-[10px] text-slate-700 placeholder:text-slate-300 focus:border-amber-500 transition-all"
-                      />
-                      <button 
-                        type="button"
-                        onClick={handleSaveApiKey}
-                        className="w-full bg-amber-500 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20"
-                      >
-                        Salvar Configuração
-                      </button>
-                      <a 
-                        href="https://aistudio.google.com/app/apikey" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="block text-center text-[9px] font-black text-amber-600 uppercase hover:underline"
-                      >
-                        Obter chave gratuita aqui
-                      </a>
-                    </div>
-                  </div>
-                )}
-
                 <button type="submit" disabled={isLoggingIn} className="w-full bg-[#111827] text-white font-black py-5 rounded-2xl uppercase tracking-widest text-[11px] flex items-center justify-center gap-3 shadow-xl hover:bg-black transition-all">
                   {isLoggingIn ? <Loader2 className="animate-spin" size={16} /> : <>ENTRAR NO SISTEMA <ChevronRight size={16} className="text-brand-yellow" /></>}
                 </button>
