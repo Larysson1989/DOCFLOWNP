@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Upload, CheckCircle2, ArrowRight, Trash2, Loader2,
@@ -16,7 +15,6 @@ import * as pdfjs from "pdfjs-dist";
 import { PDFDocument } from 'pdf-lib';
 import { jsPDF } from 'jspdf';
 
-// Configuração do worker do PDF.js
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
 
 const AUTHORIZED_USERS = [
@@ -107,18 +105,16 @@ const CATEGORY_PRIORITY: Record<string, number> = {
   'Outros': 4
 };
 
-/**
- * Gera o nome automático para documentos DARF com base no campo "nome" extraído pela IA.
- * Retorna no formato: "NOME DO CONTRIBUINTE - DARF.pdf"
- * Se o campo nome não estiver disponível, usa o suggestedName como fallback.
- */
-function buildDarfName(suggestedName: string, nome?: string): string {
-  if (nome && nome.trim().length > 0) {
-    return `${nome.trim().toUpperCase()} - DARF.pdf`;
+// ✅ CORREÇÃO: usa includes() para aceitar variações da categoria retornada pela IA
+// e garante fallback robusto quando o campo nome não vier preenchido
+function buildDarfName(originalFileName: string, nome?: string): string {
+  const nomeExtraido = nome?.trim();
+  if (nomeExtraido && nomeExtraido.length > 0) {
+    return `${nomeExtraido.toUpperCase()} - DARF.pdf`;
   }
-  // fallback: usa o suggestedName sem extensão + sufixo DARF
-  const base = suggestedName.replace(/\.[^/.]+$/, '');
-  return `${base} - DARF.pdf`;
+  // fallback: preserva nome original do arquivo sem extensão + sufixo DARF
+  const base = originalFileName.replace(/\.[^/.]+$/, '');
+  return `DARF - ${base}.pdf`;
 }
 
 export default function App() {
@@ -236,27 +232,28 @@ export default function App() {
         timeoutPromise
       ]) as any;
 
-      console.log(`[Queue] Sucesso: ${doc.file.name} -> ${result.suggestedName} (${((Date.now() - startTime)/1000).toFixed(1)}s)`);
+      console.log(`[Queue] Sucesso: ${doc.file.name} -> categoria: ${result.category} | nome: ${result.data?.nome} (${((Date.now() - startTime)/1000).toFixed(1)}s)`);
       
       setDocuments(prev => {
         const updated = prev.map(d => {
           if (d.id === doc.id) {
-            // -------------------------------------------------------
-            // LÓGICA DE RENOMEAÇÃO AUTOMÁTICA PARA DARF
-            // Se a IA identificar como DARF, usa o campo "nome" extraído
-            // do documento para compor o customName no formato:
-            // "NOME DO CONTRIBUINTE - DARF.pdf"
-            // O campo continua editável pelo usuário na interface.
-            // -------------------------------------------------------
-            const isDarf = (result.category || '').trim().toLowerCase() === 'darf';
+
+            // ✅ CORREÇÃO PRINCIPAL:
+            // Usa includes() em vez de === para capturar variações como
+            // "DARF", "Darf", "darf ", etc. retornadas pela IA Gemini.
+            // Se for DARF, renomeia usando o campo "nome" extraído do documento.
+            // O usuário pode editar o nome clicando no ícone de lápis na interface.
+            const isDarf = (result.category || '').trim().toLowerCase().includes('darf');
+
             let newName: string;
             if (isDarf) {
-              newName = buildDarfName(result.suggestedName || d.customName, result.data?.nome);
+              newName = buildDarfName(doc.file.name, result.data?.nome);
             } else {
               newName = result.suggestedName || d.customName;
             }
 
-            console.log(`[Queue] Nome aplicado: "${newName}" para ${doc.id} (categoria: ${result.category})`);
+            console.log(`[Queue] Nome aplicado: "${newName}" | isDarf: ${isDarf} | categoria retornada: "${result.category}"`);
+
             return { 
               ...d, 
               status: 'done',
@@ -298,7 +295,6 @@ export default function App() {
 
   const generatePdfThumbnail = async (file: File): Promise<string | undefined> => {
     if (file.type !== 'application/pdf') return undefined;
-    console.log(`[Thumb] Gerando miniatura para: ${file.name}`);
     try {
       const arrayBuffer = await file.arrayBuffer();
       const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
@@ -312,7 +308,6 @@ export default function App() {
         canvas.width = viewport.width;
         await page.render({ canvasContext: context, viewport: viewport }).promise;
         const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
-        console.log(`[Thumb] Miniatura gerada com sucesso.`);
         pdf.destroy();
         return dataUrl;
       }
@@ -326,24 +321,17 @@ export default function App() {
     const selectedFiles = Array.from(e.target.files || []) as File[];
     if (selectedFiles.length === 0) return;
 
-    const allowedTypes = [
-      'application/pdf',
-      'image/jpeg',
-      'image/png'
-    ];
-
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
     const newDocs: DocumentItem[] = [];
     let hasInvalid = false;
 
     for (let i = 0; i < selectedFiles.length; i++) {
       const file = selectedFiles[i];
       const isValid = allowedTypes.includes(file.type);
-      
       if (!isValid) hasInvalid = true;
 
       const id = Math.random().toString(36).substring(2, 11);
-      
-      let previewUrl = URL.createObjectURL(file);
+      const previewUrl = URL.createObjectURL(file);
       
       newDocs.push({
         id,
@@ -378,10 +366,8 @@ export default function App() {
     const newDocs = [...documents];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= newDocs.length) return;
-    
     const [movedItem] = newDocs.splice(index, 1);
     newDocs.splice(targetIndex, 0, movedItem);
-    
     setDocuments(newDocs);
   };
 
@@ -396,9 +382,7 @@ export default function App() {
       let allAnalyzed = false;
       let attempts = 0;
       while (!allAnalyzed && attempts < 20) {
-        const currentDocs = documents; 
-        const unfinished = currentDocs.filter(d => (d.status === 'pending' || d.status === 'processing') && d.isValid);
-        
+        const unfinished = documents.filter(d => (d.status === 'pending' || d.status === 'processing') && d.isValid);
         if (unfinished.length === 0) {
           allAnalyzed = true;
         } else {
@@ -408,9 +392,8 @@ export default function App() {
       }
 
       const mergedPdf = await PDFDocument.create();
-      const sortedDocs = documents;
       
-      for (const docItem of sortedDocs) {
+      for (const docItem of documents) {
         const arrayBuffer = await docItem.file.arrayBuffer();
         if (docItem.file.type === 'application/pdf') {
           const pdfDoc = await PDFDocument.load(arrayBuffer);
@@ -423,7 +406,6 @@ export default function App() {
           } else if (docItem.file.type === 'image/png') {
             image = await mergedPdf.embedPng(arrayBuffer);
           } else continue;
-          
           const page = mergedPdf.addPage([image.width, image.height]);
           page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
         }
@@ -445,9 +427,7 @@ export default function App() {
       link.click();
       URL.revokeObjectURL(url);
 
-      const proto = `HPP-UNIFY-${Date.now().toString(36).toUpperCase()}`;
-      setProtocol(proto);
-      
+      setProtocol(`HPP-UNIFY-${Date.now().toString(36).toUpperCase()}`);
       setStep('finalized');
     } catch (err) {
       console.error("Erro ao unificar documentos:", err);
@@ -494,7 +474,6 @@ export default function App() {
                   <input type="password" required placeholder="••••••••" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} className="w-full pl-12 pr-6 py-4 bg-[#EBF2FF] rounded-2xl outline-none font-bold text-sm text-slate-700" />
                 </div>
                 {loginError && <p className="text-[10px] font-black text-rose-500 uppercase text-center">Credenciais incorretas</p>}
-                
                 <button type="submit" disabled={isLoggingIn} className="w-full bg-[#111827] text-white font-black py-5 rounded-2xl uppercase tracking-widest text-[11px] flex items-center justify-center gap-3 shadow-xl hover:bg-black transition-all">
                   {isLoggingIn ? <Loader2 className="animate-spin" size={16} /> : <>ENTRAR NO SISTEMA <ChevronRight size={16} className="text-brand-yellow" /></>}
                 </button>
@@ -503,7 +482,7 @@ export default function App() {
           </div>
           <div className="absolute bottom-0 left-0 w-full h-16 bg-[#111827] flex items-center justify-center overflow-hidden">
             <div className="flex items-center gap-6 text-white/20 shrink-0 px-8">
-               <FileText size={24} /><Files size={24} /><Building2 size={24} /><Heart size={24} /><Crown size={24} /><Activity size={24} /><Baby size={24} /><Sun size={24} /><Sparkles size={24} />
+              <FileText size={24} /><Files size={24} /><Building2 size={24} /><Heart size={24} /><Crown size={24} /><Activity size={24} /><Baby size={24} /><Sun size={24} /><Sparkles size={24} />
             </div>
           </div>
         </div>
@@ -523,7 +502,7 @@ export default function App() {
           <p className="text-[10px] font-bold text-slate-400 uppercase italic transition-opacity duration-500" style={{ opacity: phraseOpacity }}>{currentPhrase}</p>
         </div>
         <div className="flex-1 flex justify-end items-center gap-4">
-           <button onClick={() => setIsAuthenticated(false)} className="text-[9px] font-black uppercase text-slate-400 hover:text-rose-500 flex items-center gap-2">LOGOUT <LogOut size={12} /></button>
+          <button onClick={() => setIsAuthenticated(false)} className="text-[9px] font-black uppercase text-slate-400 hover:text-rose-500 flex items-center gap-2">LOGOUT <LogOut size={12} /></button>
         </div>
       </header>
 
@@ -570,7 +549,6 @@ export default function App() {
                 <div className="divide-y divide-slate-100">
                   {documents.map((doc, index) => (
                     <div key={doc.id} className={`p-5 flex items-center gap-6 group hover:bg-slate-50/80 transition-all relative ${!doc.isValid ? 'bg-rose-50/30' : ''}`}>
-                      {/* Coluna de Ordenação */}
                       <div className="flex flex-col gap-1">
                         <button 
                           disabled={index === 0} 
@@ -588,7 +566,6 @@ export default function App() {
                         </button>
                       </div>
 
-                      {/* Miniatura / Preview */}
                       <div className="relative w-20 h-24 bg-slate-100 rounded-xl overflow-hidden border border-slate-200 shadow-inner shrink-0 group/thumb">
                         {doc.file.type.startsWith('image/') ? (
                           <img src={doc.previewUrl} className="w-full h-full object-cover" alt="Preview" />
@@ -600,14 +577,11 @@ export default function App() {
                             <span className="text-[8px] font-black text-slate-400 uppercase mt-1">PDF</span>
                           </div>
                         )}
-                        
-                        {/* Overlay de Status */}
                         {doc.status === 'processing' && (
                           <div className="absolute inset-0 bg-[#1064AE]/40 backdrop-blur-[2px] flex items-center justify-center">
                             <Loader2 className="animate-spin text-white" size={24} />
                           </div>
                         )}
-                        
                         <button 
                           onClick={() => setPreviewFile(doc)}
                           className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity"
@@ -616,7 +590,6 @@ export default function App() {
                         </button>
                       </div>
 
-                      {/* Informações */}
                       <div className="flex-1 min-w-0 py-1">
                         <div className="flex items-center gap-3 mb-2">
                           {editingId === doc.id ? (
@@ -644,7 +617,6 @@ export default function App() {
                                   <Edit2 size={14}/>
                                 </button>
                               </div>
-                              {/* Mostra nome original do arquivo se foi renomeado pela IA */}
                               {(doc.customName !== doc.file.name) && (
                                 <span className="text-[10px] font-medium text-slate-400 truncate max-w-xs italic" title={doc.file.name}>
                                   {doc.file.name}
@@ -662,7 +634,7 @@ export default function App() {
                             </div>
                           )}
                           
-                          {doc.aiCategory === 'DARF' && doc.aiData && (
+                          {(doc.aiCategory || '').toLowerCase().includes('darf') && doc.aiData && (
                             <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 bg-slate-50 p-3 rounded-xl border border-slate-100 w-full">
                               <div className="flex flex-col">
                                 <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Contribuinte</span>
@@ -685,7 +657,6 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Ações Rápidas */}
                       <div className="flex items-center gap-2">
                         <button 
                           onClick={() => removeFile(doc.id)} 
@@ -722,15 +693,15 @@ export default function App() {
             <h2 className="text-2xl font-black uppercase text-slate-900 mb-2">Processamento concluído com sucesso</h2>
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-10">Protocolo HPP: {protocol}</p>
             <div className="bg-slate-50 p-6 rounded-2xl mb-8 border border-slate-100">
-                <p className="text-[10px] font-black text-slate-500 uppercase mb-4 tracking-tighter flex items-center justify-center gap-2">
-                  <CheckCircle2 size={12} className="text-emerald-500"/> Auditoria Digital Finalizada
-                </p>
-                <div className="flex flex-col gap-2">
-                   <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 text-[10px] font-black uppercase text-slate-600">
-                      <span>Relatório de Processamento (Borderô Auditável)</span>
-                      <CheckCircle2 size={14} className="text-emerald-500"/>
-                   </div>
+              <p className="text-[10px] font-black text-slate-500 uppercase mb-4 tracking-tighter flex items-center justify-center gap-2">
+                <CheckCircle2 size={12} className="text-emerald-500"/> Auditoria Digital Finalizada
+              </p>
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 text-[10px] font-black uppercase text-slate-600">
+                  <span>Relatório de Processamento (Borderô Auditável)</span>
+                  <CheckCircle2 size={14} className="text-emerald-500"/>
                 </div>
+              </div>
             </div>
             <button onClick={() => { setDocuments([]); setStep('upload'); }} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-black flex items-center justify-center gap-3 shadow-xl">
               <RotateCcw size={16} /> Iniciar novo processamento
@@ -780,7 +751,7 @@ export default function App() {
       )}
 
       <footer className="bg-white border-t py-6 text-center mt-auto">
-         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Todos os direitos reservados ® Larysson Lara 21.178.711/0001-20</p>
+        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Todos os direitos reservados ® Larysson Lara 21.178.711/0001-20</p>
       </footer>
     </div>
   );
