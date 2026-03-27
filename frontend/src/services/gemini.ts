@@ -1,5 +1,4 @@
-
-import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 async function withFastRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
   let lastError;
@@ -29,7 +28,6 @@ export async function analyzeDocument(base64Data: string, mimeType: string, file
   };
 }> {
   return withFastRetry(async () => {
-    // Check for both possible environment variables for the API key
     const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
     
     if (!apiKey) {
@@ -37,10 +35,12 @@ export async function analyzeDocument(base64Data: string, mimeType: string, file
     }
 
     const ai = new GoogleGenAI({ apiKey });
+
     try {
       console.log(`Iniciando análise do documento: ${fileName}`);
+
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-2.0-flash',
         contents: {
           parts: [
             {
@@ -50,38 +50,37 @@ export async function analyzeDocument(base64Data: string, mimeType: string, file
               }
             },
             {
-              text: `Analise o arquivo: ${fileName}. Identifique o tipo do documento e extraia um nome amigável para exibição.`
+              text: `Analise este documento: ${fileName}. Identifique o tipo e extraia todos os dados visíveis.`
             }
           ]
         },
         config: {
-          systemInstruction: `Você é um especialista em análise de documentos para o Hospital Pequeno Príncipe.
-          Sua tarefa é classificar o documento e sugerir um nome de exibição amigável baseado no conteúdo (ex: Nome da Pessoa, Tipo de Documento + Data, etc).
+          systemInstruction: `Você é um especialista em análise de documentos fiscais e financeiros do Hospital Pequeno Príncipe.
+Classifique o documento e extraia as informações com máxima precisão.
 
-          REGRAS PARA suggestedName:
-          - Se for DARF: Use o nome do contribuinte em MAIÚSCULAS.
-          - Se for Comprovante: Use "Comprovante - [Nome do Favorecido/Empresa]".
-          - Se for E-Mail: Use o assunto do e-mail ou "E-mail de [Remetente]".
-          - Para outros: Use um título curto que descreva o conteúdo.
-          - Se não conseguir identificar nada relevante, use o nome do arquivo original sem a extensão.
+CATEGORIAS POSSÍVEIS (use exatamente uma):
+- "DARF" → Documento de Arrecadação de Receitas Federais
+- "Comprovante" → Comprovante de pagamento ou transferência bancária
+- "E-Mail" → Mensagem de e-mail impressa ou capturada
+- "Outros" → Qualquer outro tipo de documento
 
-          Se o documento for um DARF, extraia também os dados estruturados.
+REGRAS PARA suggestedName:
+- Se for DARF: use APENAS o nome do contribuinte em MAIÚSCULAS (ex: "JESSICA COSTA")
+- Se for Comprovante: use "Comprovante - [Nome do Favorecido]"
+- Se for E-Mail: use o assunto do e-mail ou "E-mail de [Remetente]"
+- Para Outros: use um título curto que descreva o conteúdo
 
-          Retorne APENAS JSON no formato:
-          {
-            "category": "DARF | Comprovante | E-Mail | Outros",
-            "confidence": 0-1,
-            "suggestedName": "string",
-            "data": { // Opcional, apenas se for DARF
-              "cpfCnpj": "string",
-              "nome": "string",
-              "periodoApuracao": "string",
-              "vencimento": "string",
-              "numeroDocumento": "string",
-              "valorTotal": "string",
-              "codigoReceita": "string"
-            }
-          }`,
+REGRAS CRÍTICAS PARA DARF — siga obrigatoriamente:
+- O campo data.nome DEVE ser preenchido com o nome exato que aparece no campo "Nome" ou "Contribuinte" do DARF
+- O campo data.cpfCnpj DEVE ser preenchido com o CPF ou CNPJ visível no documento
+- O campo data.vencimento DEVE ser preenchido com a data de vencimento
+- O campo data.valorTotal DEVE ser preenchido com o valor total a pagar
+- O campo data.periodoApuracao DEVE ser preenchido com o período de apuração
+- O campo data.codigoReceita DEVE ser preenchido com o código da receita
+- NUNCA deixe data.nome vazio quando o documento for DARF e o campo Nome estiver visível no documento
+- Se não conseguir ler algum campo, preencha com "Não identificado" ao invés de deixar vazio
+
+Retorne APENAS JSON válido no formato especificado.`,
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -109,11 +108,12 @@ export async function analyzeDocument(base64Data: string, mimeType: string, file
 
       const text = response.text;
       if (!text) throw new Error("Resposta da API vazia");
+
       const parsed = JSON.parse(text);
       console.log(`Análise concluída para ${fileName}:`, parsed);
       return parsed;
+
     } catch (apiErr: any) {
-      // Handle specific 403 error for better user feedback
       if (apiErr.message?.includes('403') || apiErr.status === 403) {
         throw new Error("Erro 403: Chave API inválida ou sem permissão. Tente reconfigurar a chave.");
       }
