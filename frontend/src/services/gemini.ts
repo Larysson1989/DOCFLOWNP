@@ -28,8 +28,12 @@ export async function analyzeDocument(base64Data: string, mimeType: string, file
   };
 }> {
   return withFastRetry(async () => {
-    const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
-    
+    // ✅ CORREÇÃO: lê a chave via import.meta.env (Vite) com fallback para process.env (Node)
+    const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY
+      || (import.meta as any).env?.VITE_API_KEY
+      || process.env.API_KEY
+      || process.env.GEMINI_API_KEY;
+
     if (!apiKey) {
       throw new Error("Chave API não configurada no ambiente.");
     }
@@ -40,7 +44,8 @@ export async function analyzeDocument(base64Data: string, mimeType: string, file
       console.log(`Iniciando análise do documento: ${fileName}`);
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
+        // ✅ CORREÇÃO: modelo atualizado — gemini-2.0-flash foi descontinuado
+        model: 'gemini-2.5-flash-preview-04-17',
         contents: {
           parts: [
             {
