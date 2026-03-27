@@ -107,6 +107,20 @@ const CATEGORY_PRIORITY: Record<string, number> = {
   'Outros': 4
 };
 
+/**
+ * Gera o nome automático para documentos DARF com base no campo "nome" extraído pela IA.
+ * Retorna no formato: "NOME DO CONTRIBUINTE - DARF.pdf"
+ * Se o campo nome não estiver disponível, usa o suggestedName como fallback.
+ */
+function buildDarfName(suggestedName: string, nome?: string): string {
+  if (nome && nome.trim().length > 0) {
+    return `${nome.trim().toUpperCase()} - DARF.pdf`;
+  }
+  // fallback: usa o suggestedName sem extensão + sufixo DARF
+  const base = suggestedName.replace(/\.[^/.]+$/, '');
+  return `${base} - DARF.pdf`;
+}
+
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
@@ -159,15 +173,13 @@ export default function App() {
   };
 
   const [processingQueue, setProcessingQueue] = useState<string[]>([]);
-  const MAX_CONCURRENT = 2; // Reduzido para 2 para garantir estabilidade total e evitar timeouts
+  const MAX_CONCURRENT = 2;
 
-  // Gerenciador de fila robusto
   useEffect(() => {
     const pendingDocs = documents.filter(d => d.status === 'pending' && d.isValid);
     const activeDocs = documents.filter(d => d.status === 'processing');
     
     if (activeDocs.length < MAX_CONCURRENT && pendingDocs.length > 0) {
-      // Pega o próximo que não está sendo processado nem está na fila de sinalização
       const next = pendingDocs.find(d => !processingQueue.includes(d.id));
       if (next) {
         setProcessingQueue(prev => [...prev, next.id]);
@@ -177,10 +189,8 @@ export default function App() {
   }, [documents, processingQueue]);
 
   const processDocument = async (doc: DocumentItem) => {
-    // Atualiza status para processando imediatamente
     setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, status: 'processing' } : d));
     
-    // Timeout de segurança para não travar a fila (120s)
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error("Tempo limite de análise excedido (120s)")), 120000)
     );
@@ -192,21 +202,20 @@ export default function App() {
       let b64 = '';
       let mimeType = doc.file.type;
 
-      // Lógica de extração de imagem do PDF
       if (doc.file.type === 'application/pdf') {
         const convertPromise = (async () => {
           const arrayBuffer = await doc.file.arrayBuffer();
           const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
           const pdf = await loadingTask.promise;
           const page = await pdf.getPage(1);
-          const viewport = page.getViewport({ scale: 1.2 }); // Reduzido de 2.0 para 1.2 para maior velocidade de upload
+          const viewport = page.getViewport({ scale: 1.2 });
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d');
           if (!context) throw new Error("Erro ao criar contexto canvas");
           canvas.height = viewport.height;
           canvas.width = viewport.width;
           await page.render({ canvasContext: context, viewport: viewport }).promise;
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.7); // Qualidade ligeiramente menor para reduzir tamanho do payload
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
           pdf.destroy();
           return dataUrl.split(',')[1];
         })();
@@ -232,8 +241,22 @@ export default function App() {
       setDocuments(prev => {
         const updated = prev.map(d => {
           if (d.id === doc.id) {
-            const newName = result.suggestedName || d.customName;
-            console.log(`[Queue] Aplicando nome: ${newName} para ${doc.id}`);
+            // -------------------------------------------------------
+            // LÓGICA DE RENOMEAÇÃO AUTOMÁTICA PARA DARF
+            // Se a IA identificar como DARF, usa o campo "nome" extraído
+            // do documento para compor o customName no formato:
+            // "NOME DO CONTRIBUINTE - DARF.pdf"
+            // O campo continua editável pelo usuário na interface.
+            // -------------------------------------------------------
+            const isDarf = (result.category || '').trim().toLowerCase() === 'darf';
+            let newName: string;
+            if (isDarf) {
+              newName = buildDarfName(result.suggestedName || d.customName, result.data?.nome);
+            } else {
+              newName = result.suggestedName || d.customName;
+            }
+
+            console.log(`[Queue] Nome aplicado: "${newName}" para ${doc.id} (categoria: ${result.category})`);
             return { 
               ...d, 
               status: 'done',
@@ -320,7 +343,6 @@ export default function App() {
 
       const id = Math.random().toString(36).substring(2, 11);
       
-      // Convert to PDF for preview if it's not PDF/Image
       let previewUrl = URL.createObjectURL(file);
       
       newDocs.push({
@@ -344,7 +366,6 @@ export default function App() {
     setDocuments(prev => [...prev, ...newDocs]);
     if (fileInputRef.current) fileInputRef.current.value = '';
 
-    // Generate thumbnails for PDFs
     newDocs.filter(d => d.file.type === 'application/pdf').forEach(async (doc) => {
       const thumb = await generatePdfThumbnail(doc.file);
       if (thumb) {
@@ -372,7 +393,6 @@ export default function App() {
   const handleProcessAll = async () => {
     setIsProcessing(true);
     try {
-      // Esperar até que todos os documentos válidos sejam processados pela IA
       let allAnalyzed = false;
       let attempts = 0;
       while (!allAnalyzed && attempts < 20) {
@@ -388,7 +408,6 @@ export default function App() {
       }
 
       const mergedPdf = await PDFDocument.create();
-      // Use the documents array directly as it maintains the UI order
       const sortedDocs = documents;
       
       for (const docItem of sortedDocs) {
@@ -414,7 +433,6 @@ export default function App() {
       const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       
-      // Get DARF name for the filename
       const darfDoc = documents.find(d => (d.aiCategory || '').toLowerCase().includes('darf'));
       const baseName = darfDoc 
         ? darfDoc.customName.replace(/\.[^/.]+$/, "") 
@@ -618,10 +636,15 @@ export default function App() {
                                 <h4 className="text-sm font-black text-slate-800 truncate max-w-md" title={doc.customName}>
                                   {doc.customName}
                                 </h4>
-                                <button onClick={() => { setEditingId(doc.id); setTempName(doc.customName); }} className="opacity-0 group-hover/name:opacity-100 p-1 text-slate-400 hover:text-[#1064AE] transition-all shrink-0">
+                                <button
+                                  onClick={() => { setEditingId(doc.id); setTempName(doc.customName); }}
+                                  className="opacity-0 group-hover/name:opacity-100 p-1 text-slate-400 hover:text-[#1064AE] transition-all shrink-0"
+                                  title="Editar nome"
+                                >
                                   <Edit2 size={14}/>
                                 </button>
                               </div>
+                              {/* Mostra nome original do arquivo se foi renomeado pela IA */}
                               {(doc.customName !== doc.file.name) && (
                                 <span className="text-[10px] font-medium text-slate-400 truncate max-w-xs italic" title={doc.file.name}>
                                   {doc.file.name}
