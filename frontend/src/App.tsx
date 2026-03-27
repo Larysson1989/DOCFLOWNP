@@ -105,14 +105,11 @@ const CATEGORY_PRIORITY: Record<string, number> = {
   'Outros': 4
 };
 
-// ✅ CORREÇÃO: usa includes() para aceitar variações da categoria retornada pela IA
-// e garante fallback robusto quando o campo nome não vier preenchido
 function buildDarfName(originalFileName: string, nome?: string): string {
   const nomeExtraido = nome?.trim();
   if (nomeExtraido && nomeExtraido.length > 0) {
     return `${nomeExtraido.toUpperCase()} - DARF.pdf`;
   }
-  // fallback: preserva nome original do arquivo sem extensão + sufixo DARF
   const base = originalFileName.replace(/\.[^/.]+$/, '');
   return `DARF - ${base}.pdf`;
 }
@@ -174,7 +171,6 @@ export default function App() {
   useEffect(() => {
     const pendingDocs = documents.filter(d => d.status === 'pending' && d.isValid);
     const activeDocs = documents.filter(d => d.status === 'processing');
-    
     if (activeDocs.length < MAX_CONCURRENT && pendingDocs.length > 0) {
       const next = pendingDocs.find(d => !processingQueue.includes(d.id));
       if (next) {
@@ -215,7 +211,6 @@ export default function App() {
           pdf.destroy();
           return dataUrl.split(',')[1];
         })();
-        
         b64 = await Promise.race([convertPromise, timeoutPromise]) as string;
         mimeType = 'image/jpeg';
       } else {
@@ -237,23 +232,14 @@ export default function App() {
       setDocuments(prev => {
         const updated = prev.map(d => {
           if (d.id === doc.id) {
-
-            // ✅ CORREÇÃO PRINCIPAL:
-            // Usa includes() em vez de === para capturar variações como
-            // "DARF", "Darf", "darf ", etc. retornadas pela IA Gemini.
-            // Se for DARF, renomeia usando o campo "nome" extraído do documento.
-            // O usuário pode editar o nome clicando no ícone de lápis na interface.
             const isDarf = (result.category || '').trim().toLowerCase().includes('darf');
-
             let newName: string;
             if (isDarf) {
               newName = buildDarfName(doc.file.name, result.data?.nome);
             } else {
               newName = result.suggestedName || d.customName;
             }
-
-            console.log(`[Queue] Nome aplicado: "${newName}" | isDarf: ${isDarf} | categoria retornada: "${result.category}"`);
-
+            console.log(`[Queue] Nome aplicado: "${newName}" | isDarf: ${isDarf} | categoria: "${result.category}"`);
             return { 
               ...d, 
               status: 'done',
@@ -415,11 +401,12 @@ export default function App() {
       const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       
+      // ✅ CORREÇÃO 1: nome do PDF = apenas o customName do DARF, sem sufixo "Unificado"
       const darfDoc = documents.find(d => (d.aiCategory || '').toLowerCase().includes('darf'));
-      const baseName = darfDoc 
-        ? darfDoc.customName.replace(/\.[^/.]+$/, "") 
+      const baseName = darfDoc
+        ? darfDoc.customName.replace(/\.[^/.]+$/, "")
         : documents[0]?.customName.replace(/\.[^/.]+$/, "") || "Documento";
-      const fileName = `${baseName} Unificado.pdf`;
+      const fileName = `${baseName}.pdf`;
 
       const link = document.createElement('a');
       link.href = url;
@@ -453,7 +440,6 @@ export default function App() {
             </h1>
             <div className="w-20 h-1.5 bg-brand-yellow mx-auto -mt-1 rounded-full"></div>
           </header>
-
           <div className="flex flex-col md:flex-row w-full items-center justify-between gap-12 mb-16 relative">
             <div className="flex-1 flex justify-center -translate-y-[15%]">
               <img 
@@ -626,32 +612,12 @@ export default function App() {
                           )}
                         </div>
 
+                        {/* ✅ CORREÇÃO 2: card de detalhes do DARF removido */}
                         <div className="flex flex-wrap items-center gap-2">
                           {!doc.isValid && (
                             <div className="flex items-center gap-1.5 px-3 py-1 bg-rose-50 border border-rose-200 text-rose-600 rounded-full">
                               <AlertTriangle size={10} />
                               <span className="text-[9px] font-black uppercase tracking-wider">Formato Não Suportado</span>
-                            </div>
-                          )}
-                          
-                          {(doc.aiCategory || '').toLowerCase().includes('darf') && doc.aiData && (
-                            <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 bg-slate-50 p-3 rounded-xl border border-slate-100 w-full">
-                              <div className="flex flex-col">
-                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Contribuinte</span>
-                                <span className="text-[10px] font-black text-slate-700 truncate">{doc.aiData.nome || 'N/A'}</span>
-                              </div>
-                              <div className="flex flex-col">
-                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">CPF/CNPJ</span>
-                                <span className="text-[10px] font-black text-slate-700">{doc.aiData.cpfCnpj || 'N/A'}</span>
-                              </div>
-                              <div className="flex flex-col">
-                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Vencimento</span>
-                                <span className="text-[10px] font-black text-slate-700">{doc.aiData.vencimento || 'N/A'}</span>
-                              </div>
-                              <div className="flex flex-col">
-                                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Valor</span>
-                                <span className="text-[10px] font-black text-emerald-600">R$ {doc.aiData.valorTotal || '0,00'}</span>
-                              </div>
                             </div>
                           )}
                         </div>
