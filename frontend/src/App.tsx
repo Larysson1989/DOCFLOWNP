@@ -108,7 +108,7 @@ const CATEGORY_PRIORITY: Record<string, number> = {
 function buildDarfName(originalFileName: string, nome?: string): string {
   const nomeExtraido = nome?.trim();
   if (nomeExtraido && nomeExtraido.length > 0) {
-    return `${nomeExtraido.toUpperCase()} - DARF.pdf`;
+    return `${nomeExtraido.toUpperCase()}.pdf`;
   }
   const base = originalFileName.replace(/\.[^/.]+$/, '');
   return `DARF - ${base}.pdf`;
@@ -400,8 +400,8 @@ export default function App() {
       const pdfBytes = await mergedPdf.save();
       const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
-      
-      // ✅ CORREÇÃO 1: nome do PDF = apenas o customName do DARF, sem sufixo "Unificado"
+
+      // ✅ CORREÇÃO: regex correta sem escape duplo
       const darfDoc = documents.find(d => (d.aiCategory || '').toLowerCase().includes('darf'));
       const baseName = darfDoc
         ? darfDoc.customName.replace(/\.[^/.]+$/, "")
@@ -611,8 +611,6 @@ export default function App() {
                             </div>
                           )}
                         </div>
-
-                        {/* ✅ CORREÇÃO 2: card de detalhes do DARF removido */}
                         <div className="flex flex-wrap items-center gap-2">
                           {!doc.isValid && (
                             <div className="flex items-center gap-1.5 px-3 py-1 bg-rose-50 border border-rose-200 text-rose-600 rounded-full">
