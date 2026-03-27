@@ -28,7 +28,6 @@ export async function analyzeDocument(base64Data: string, mimeType: string, file
   };
 }> {
   return withFastRetry(async () => {
-    // ✅ CORREÇÃO: lê a chave via import.meta.env (Vite) com fallback para process.env (Node)
     const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY
       || (import.meta as any).env?.VITE_API_KEY
       || process.env.API_KEY
@@ -44,8 +43,8 @@ export async function analyzeDocument(base64Data: string, mimeType: string, file
       console.log(`Iniciando análise do documento: ${fileName}`);
 
       const response = await ai.models.generateContent({
-        // ✅ CORREÇÃO: modelo atualizado — gemini-2.0-flash foi descontinuado
-        model: 'gemini-2.5-flash-preview-04-17',
+        // ✅ modelo estável com disponibilidade geral
+        model: 'gemini-2.5-flash',
         contents: {
           parts: [
             {
