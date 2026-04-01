@@ -22,7 +22,8 @@ const AUTHORIZED_USERS = [
   { email: 'nathaly.moco@hpp.org.br', password: 'NaMo#742' },
   { email: 'amanda.magliano@hpp.org.br', password: 'AmaG@538' },
   { email: 'kelly.prado@hpp.org.br', password: 'KelP!964' },
-  { email: 'gabriela.heller@hpp.org.br', password: 'GabH#281' }
+  { email: 'gabriela.heller@hpp.org.br', password: 'GabH#281' },
+  { email: 'doepequenoprincipe@hpp.org.br', password: 'Dpq#958' }
 ];
 
 const INSTITUTIONAL_PHRASES = [
