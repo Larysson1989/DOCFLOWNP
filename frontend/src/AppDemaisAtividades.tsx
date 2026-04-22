@@ -2,8 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   Upload, Trash2, Loader2, ShieldCheck, AlertTriangle,
   ChevronUp, ChevronDown, Eye, X, FileText, Files,
-  CheckCircle, RotateCcw, Info, File, Presentation,
-  FileSpreadsheet, Code
+  CheckCircle, RotateCcw, Info, File
 } from 'lucide-react';
 import { PDFDocument } from 'pdf-lib';
 import * as pdfjs from 'pdfjs-dist';
@@ -22,19 +21,6 @@ interface DocItem {
   error?: string;
 }
 
-function getFileIcon(file: File) {
-  const ext = file.name.split('.').pop()?.toLowerCase();
-  if (['pptx','ppt'].includes(ext || '')) return <Presentation size={28} className="text-orange-400" />;
-  if (['docx','doc'].includes(ext || '')) return <FileText size={28} className="text-blue-400" />;
-  if (['xml'].includes(ext || '')) return <Code size={28} className="text-purple-400" />;
-  if (file.type.startsWith('image/')) return <FileText size={28} className="text-emerald-400" />;
-  return <File size={28} className="text-slate-300" />;
-}
-
-function getExtLabel(file: File) {
-  return (file.name.split('.').pop()?.toUpperCase()) || 'FILE';
-}
-
 const SUPPORTED_INFO = [
   { label: 'Apresentações', exts: 'PPTX, PPT' },
   { label: 'Documentos Word', exts: 'DOCX, DOC' },
@@ -42,6 +28,27 @@ const SUPPORTED_INFO = [
   { label: 'Imagens', exts: 'JPG, JPEG, PNG, GIF, WEBP, BMP, TIFF, HEIC' },
   { label: 'Documentos', exts: 'PDF' },
 ];
+
+function getFileIcon(file: File) {
+  const ext = file.name.split('.').pop()?.toLowerCase();
+  if (['pptx', 'ppt'].includes(ext || '')) {
+    return <span className="text-2xl">📊</span>;
+  }
+  if (['docx', 'doc'].includes(ext || '')) {
+    return <span className="text-2xl">📝</span>;
+  }
+  if (['xml'].includes(ext || '')) {
+    return <span className="text-2xl">🗂️</span>;
+  }
+  if (file.type.startsWith('image/')) {
+    return <span className="text-2xl">🖼️</span>;
+  }
+  return <FileText size={28} className="text-slate-300" />;
+}
+
+function getExtLabel(file: File) {
+  return file.name.split('.').pop()?.toUpperCase() || 'FILE';
+}
 
 interface Props {
   onLogout: () => void;
@@ -60,11 +67,12 @@ export default function AppDemaisAtividades({ onLogout }: Props) {
     if (file.type !== 'application/pdf') return;
     try {
       const ab = await file.arrayBuffer();
-      const pdf = await (await pdfjs.getDocument({ data: ab }).promise);
+      const pdf = await pdfjs.getDocument({ data: ab }).promise;
       const page = await pdf.getPage(1);
       const vp = page.getViewport({ scale: 0.3 });
       const canvas = document.createElement('canvas');
-      canvas.width = vp.width; canvas.height = vp.height;
+      canvas.width = vp.width;
+      canvas.height = vp.height;
       const ctx = canvas.getContext('2d')!;
       await page.render({ canvasContext: ctx, viewport: vp }).promise;
       const thumb = canvas.toDataURL('image/jpeg', 0.6);
@@ -73,7 +81,7 @@ export default function AppDemaisAtividades({ onLogout }: Props) {
     } catch { /* ignora erro de thumbnail */ }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
@@ -100,7 +108,6 @@ export default function AppDemaisAtividades({ onLogout }: Props) {
 
     setDocs(prev => [...prev, ...newDocs]);
     if (fileInputRef.current) fileInputRef.current.value = '';
-
     newDocs.forEach(d => generateThumb(d.file, d.id));
   };
 
@@ -126,35 +133,85 @@ export default function AppDemaisAtividades({ onLogout }: Props) {
         setDocs(prev => prev.map(d => d.id === docItem.id ? { ...d, converting: true } : d));
 
         try {
-          // Converte o arquivo para PDF (retorna o próprio se já for PDF)
-          const pdfBlob = await convertToPdf(docItem.file);
-          const ab = await pdfBlob.arrayBuffer();
-          const ext = docItem.file.name.split('.').pop()?.toLowerCase();
+          const ext = docItem.file.name.split('.').pop()?.toLowerCase() || '';
+          const isImage = docItem.file.type.startsWith('image/');
+          const isPdf = docItem.file.type === 'application/pdf' || ext === 'pdf';
+          const isOfficeOrXml = ['pptx', 'ppt', 'docx', 'doc', 'xml'].includes(ext);
 
-          if (docItem.file.type === 'application/pdf' || ext === 'pdf') {
+          if (isPdf) {
+            // PDF nativo: carrega direto
+            const ab = await docItem.file.arrayBuffer();
             const srcPdf = await PDFDocument.load(ab);
             const pages = await mergedPdf.copyPages(srcPdf, srcPdf.getPageIndices());
             pages.forEach(p => mergedPdf.addPage(p));
-          } else if (docItem.file.type.startsWith('image/')) {
-            let image;
+
+          } else if (isImage) {
+            const ab = await docItem.file.arrayBuffer();
             const mime = docItem.file.type;
+
             if (mime === 'image/jpeg' || mime === 'image/jpg') {
-              image = await mergedPdf.embedJpg(ab);
+              const image = await mergedPdf.embedJpg(ab);
+              const page = mergedPdf.addPage([image.width, image.height]);
+              page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
+
+            } else if (mime === 'image/png') {
+              const image = await mergedPdf.embedPng(ab);
+              const page = mergedPdf.addPage([image.width, image.height]);
+              page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
+
             } else {
-              image = await mergedPdf.embedPng(ab);
+              // gif, webp, bmp, tiff etc: converte para JPEG via canvas
+              const bitmap = await createImageBitmap(docItem.file);
+              const canvas = document.createElement('canvas');
+              canvas.width = bitmap.width;
+              canvas.height = bitmap.height;
+              canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
+              const jpegBlob = await new Promise<Blob>(res =>
+                canvas.toBlob(b => res(b!), 'image/jpeg', 0.92)
+              );
+              const jpegAb = await jpegBlob.arrayBuffer();
+              const image = await mergedPdf.embedJpg(jpegAb);
+              const page = mergedPdf.addPage([image.width, image.height]);
+              page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
             }
-            const page = mergedPdf.addPage([image.width, image.height]);
-            page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
-          } else {
-            // Office/XML já foram convertidos para PDF pelo convertToPdf
-            const convertedPdf = await PDFDocument.load(ab);
-            const pages = await mergedPdf.copyPages(convertedPdf, convertedPdf.getPageIndices());
-            pages.forEach(p => mergedPdf.addPage(p));
+
+          } else if (isOfficeOrXml) {
+            // Office/XML: converte via API externa, verifica se resultado é PDF válido
+            const pdfBlob = await convertToPdf(docItem.file);
+            const ab = await pdfBlob.arrayBuffer();
+
+            // Checa header %PDF- para garantir que a conversão funcionou
+            const header = new Uint8Array(ab.slice(0, 5));
+            const isPdfValid = String.fromCharCode(...header) === '%PDF-';
+
+            if (isPdfValid) {
+              const srcPdf = await PDFDocument.load(ab);
+              const pages = await mergedPdf.copyPages(srcPdf, srcPdf.getPageIndices());
+              pages.forEach(p => mergedPdf.addPage(p));
+            } else {
+              // Conversão falhou: insere página de aviso no PDF final
+              const page = mergedPdf.addPage();
+              const { height } = page.getSize();
+              page.drawText(`Não foi possível converter: ${docItem.file.name}`, {
+                x: 40, y: height - 60, size: 12,
+              });
+              page.drawText(`Formato .${ext} — converta manualmente para PDF e reenvie.`, {
+                x: 40, y: height - 90, size: 10,
+              });
+            }
           }
 
           setDocs(prev => prev.map(d => d.id === docItem.id ? { ...d, converting: false } : d));
+
         } catch (err: any) {
-          setDocs(prev => prev.map(d => d.id === docItem.id ? { ...d, converting: false, error: err.message } : d));
+          console.error(`Erro no arquivo ${docItem.file.name}:`, err);
+          setDocs(prev => prev.map(d =>
+            d.id === docItem.id ? { ...d, converting: false, error: err.message } : d
+          ));
+          // Não aborta: insere página de erro e continua
+          const page = mergedPdf.addPage();
+          const { height } = page.getSize();
+          page.drawText(`Erro ao processar: ${docItem.file.name}`, { x: 40, y: height - 60, size: 12 });
         }
       }
 
@@ -170,8 +227,9 @@ export default function AppDemaisAtividades({ onLogout }: Props) {
 
       setProtocol(`HPP-DOCS-${Date.now().toString(36).toUpperCase()}`);
       setStep('done');
+
     } catch (err) {
-      console.error('Erro ao unificar:', err);
+      console.error('Erro geral ao unificar:', err);
       alert('Erro ao gerar PDF unificado.');
     } finally {
       setIsProcessing(false);
@@ -182,6 +240,7 @@ export default function AppDemaisAtividades({ onLogout }: Props) {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
+
       {/* Header */}
       <header className="bg-white border-b h-16 flex items-center px-8 sticky top-0 z-50">
         <div className="flex-1 font-black uppercase text-slate-900 text-sm flex items-center gap-3">
@@ -194,13 +253,14 @@ export default function AppDemaisAtividades({ onLogout }: Props) {
           onClick={onLogout}
           className="text-[9px] font-black uppercase text-slate-400 hover:text-rose-500 flex items-center gap-2"
         >
-          TROCAR MÓDULO
+          ← TROCAR MÓDULO
         </button>
       </header>
 
       <main className="flex-1 max-w-5xl mx-auto w-full p-8 pb-24">
         {step === 'upload' && (
           <div className="space-y-8">
+
             {/* Drop zone */}
             <div className="bg-white rounded-[2.5rem] border-4 border-dashed border-slate-200 p-12 text-center relative hover:bg-slate-50 transition-all cursor-pointer group shadow-sm">
               <input
@@ -219,7 +279,7 @@ export default function AppDemaisAtividades({ onLogout }: Props) {
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                   PDF, Imagens, PPTX, DOCX, XML e mais
                 </p>
-                {/* Tooltip de informação */}
+                {/* Tooltip de formatos suportados */}
                 <div className="group/info relative z-20">
                   <Info size={14} className="text-slate-300 cursor-help" />
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-4 bg-slate-900 text-white text-[9px] rounded-2xl opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 shadow-2xl border border-white/10 text-left">
@@ -235,7 +295,7 @@ export default function AppDemaisAtividades({ onLogout }: Props) {
                       ))}
                     </div>
                     <p className="mt-3 text-white/30 text-[8px] border-t border-white/10 pt-2">
-                      Arquivos Office serão convertidos automaticamente para PDF antes da unificação.
+                      Arquivos Office são convertidos automaticamente para PDF antes da unificação.
                     </p>
                   </div>
                 </div>
@@ -248,7 +308,8 @@ export default function AppDemaisAtividades({ onLogout }: Props) {
                 <div className="p-6 bg-slate-50/80 border-b flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <span className="text-[11px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-2">
-                      <Files size={14} className="text-emerald-600" /> {docs.length} Arquivo{docs.length > 1 ? 's' : ''} no lote
+                      <Files size={14} className="text-emerald-600" />
+                      {docs.length} Arquivo{docs.length > 1 ? 's' : ''} no lote
                     </span>
                     <button
                       onClick={() => fileInputRef.current?.click()}
@@ -268,12 +329,20 @@ export default function AppDemaisAtividades({ onLogout }: Props) {
                       key={doc.id}
                       className={`p-5 flex items-center gap-6 group hover:bg-slate-50/80 transition-all ${!doc.isValid ? 'bg-rose-50/30' : ''}`}
                     >
-                      {/* Setas de ordenação */}
+                      {/* Setas ordenação */}
                       <div className="flex flex-col gap-1">
-                        <button disabled={index === 0} onClick={() => moveFile(index, 'up')} className="p-1.5 text-black hover:text-emerald-600 hover:bg-white rounded-md shadow-sm disabled:opacity-0 transition-all">
+                        <button
+                          disabled={index === 0}
+                          onClick={() => moveFile(index, 'up')}
+                          className="p-1.5 text-black hover:text-emerald-600 hover:bg-white rounded-md shadow-sm disabled:opacity-0 transition-all"
+                        >
                           <ChevronUp size={18} strokeWidth={3} />
                         </button>
-                        <button disabled={index === docs.length - 1} onClick={() => moveFile(index, 'down')} className="p-1.5 text-black hover:text-emerald-600 hover:bg-white rounded-md shadow-sm disabled:opacity-0 transition-all">
+                        <button
+                          disabled={index === docs.length - 1}
+                          onClick={() => moveFile(index, 'down')}
+                          className="p-1.5 text-black hover:text-emerald-600 hover:bg-white rounded-md shadow-sm disabled:opacity-0 transition-all"
+                        >
                           <ChevronDown size={18} strokeWidth={3} />
                         </button>
                       </div>
@@ -295,17 +364,17 @@ export default function AppDemaisAtividades({ onLogout }: Props) {
                             <Loader2 className="animate-spin text-white" size={24} />
                           </div>
                         )}
-                        {doc.file.type.startsWith('image/') || doc.thumbnailUrl ? (
+                        {(doc.file.type.startsWith('image/') || doc.thumbnailUrl) && (
                           <button
                             onClick={() => setPreviewDoc(doc)}
                             className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity"
                           >
                             <Eye className="text-white" size={20} />
                           </button>
-                        ) : null}
+                        )}
                       </div>
 
-                      {/* Info do arquivo */}
+                      {/* Info arquivo */}
                       <div className="flex-1 min-w-0 py-1">
                         <h4 className="text-sm font-black text-slate-800 truncate max-w-md" title={doc.file.name}>
                           {doc.file.name}
@@ -339,9 +408,10 @@ export default function AppDemaisAtividades({ onLogout }: Props) {
               </div>
             )}
 
+            {/* Botão unificar */}
             {docs.length > 0 && (
               <button
-                disabled={isProcessing || hasInvalid || docs.length === 0}
+                disabled={isProcessing || hasInvalid}
                 onClick={handleUnify}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-6 rounded-[2rem] shadow-xl transition-all flex items-center justify-center gap-4 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -354,6 +424,7 @@ export default function AppDemaisAtividades({ onLogout }: Props) {
           </div>
         )}
 
+        {/* Tela de sucesso */}
         {step === 'done' && (
           <div className="max-w-2xl mx-auto bg-white rounded-[3rem] shadow-2xl p-16 text-center border-t-8 border-emerald-500">
             <div className="w-20 h-20 bg-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl shadow-emerald-500/20">
@@ -373,18 +444,31 @@ export default function AppDemaisAtividades({ onLogout }: Props) {
         )}
       </main>
 
-      {/* Modal preview */}
+      {/* Modal preview imagem */}
       {previewDoc && (
-        <div className="fixed inset-0 z-[110] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-8" onClick={() => setPreviewDoc(null)}>
-          <div className="bg-white w-full max-w-3xl h-[80vh] rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-[110] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-8"
+          onClick={() => setPreviewDoc(null)}
+        >
+          <div
+            className="bg-white w-full max-w-3xl h-[80vh] rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
             <header className="px-8 py-5 border-b flex items-center justify-between">
               <h3 className="text-xs font-black uppercase text-slate-800 truncate max-w-lg">{previewDoc.file.name}</h3>
-              <button onClick={() => setPreviewDoc(null)} className="p-3 bg-slate-50 text-slate-400 hover:text-rose-500 rounded-full border hover:rotate-90 transition-all">
+              <button
+                onClick={() => setPreviewDoc(null)}
+                className="p-3 bg-slate-50 text-slate-400 hover:text-rose-500 rounded-full border hover:rotate-90 transition-all"
+              >
                 <X size={20} />
               </button>
             </header>
             <div className="flex-1 overflow-auto flex items-center justify-center bg-slate-100 p-8">
-              <img src={previewDoc.previewUrl} className="max-h-full max-w-full object-contain shadow-2xl rounded-sm border-[10px] border-white" alt="Preview" />
+              <img
+                src={previewDoc.previewUrl}
+                className="max-h-full max-w-full object-contain shadow-2xl rounded-sm border-[10px] border-white"
+                alt="Preview"
+              />
             </div>
           </div>
         </div>
@@ -401,7 +485,10 @@ export default function AppDemaisAtividades({ onLogout }: Props) {
               <h3 className="text-sm font-black uppercase text-slate-800">Arquivos Inválidos</h3>
             </div>
             <p className="text-xs text-slate-500 font-medium leading-relaxed mb-8">{errorModal.message}</p>
-            <button onClick={() => setErrorModal({ show: false, message: '' })} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest">
+            <button
+              onClick={() => setErrorModal({ show: false, message: '' })}
+              className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest"
+            >
               Entendido
             </button>
           </div>
