@@ -14,6 +14,7 @@ import { convertToPdf } from './services/converter';
 import * as pdfjs from "pdfjs-dist";
 import { PDFDocument } from 'pdf-lib';
 import { jsPDF } from 'jspdf';
+import AppDemaisAtividades from './AppDemaisAtividades';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
 
@@ -42,6 +43,8 @@ declare global {
     };
   }
 }
+
+type AppMode = '3pct_ifpf' | 'demais_atividades' | null;
 
 const PDFCanvasViewer = ({ url }: { url: string }) => {
   const [loading, setLoading] = useState(true);
@@ -117,6 +120,7 @@ function buildDarfName(originalFileName: string, nome?: string): string {
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [selectedMode, setSelectedMode] = useState<AppMode>(null);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -402,7 +406,6 @@ export default function App() {
       const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
 
-      // ✅ CORREÇÃO: regex correta sem escape duplo
       const darfDoc = documents.find(d => (d.aiCategory || '').toLowerCase().includes('darf'));
       const baseName = darfDoc
         ? darfDoc.customName.replace(/\.[^/.]+$/, "")
@@ -431,16 +434,51 @@ export default function App() {
 
   const hasInvalidFiles = documents.some(d => !d.isValid);
 
+  // ─── TELA DE LOGIN ────────────────────────────────────────────────────────
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 antialiased">
         <div className="w-full max-w-4xl bg-white rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden flex flex-col items-center p-12 mb-8 relative">
-          <header className="mb-12 text-center relative">
+          <header className="mb-8 text-center relative">
             <h1 className="text-[36px] font-black uppercase text-slate-800 tracking-tight">
               DOC.FLOW <span className="text-[#1064AE]">NP</span>
             </h1>
             <div className="w-20 h-1.5 bg-brand-yellow mx-auto -mt-1 rounded-full"></div>
           </header>
+
+          {/* ── SELETOR DE MÓDULO ── */}
+          <div className="w-full max-w-sm mb-8">
+            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest text-center mb-3">
+              Selecione o módulo de acesso
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedMode('3pct_ifpf')}
+                className={`p-4 rounded-2xl border-2 font-black text-[11px] uppercase tracking-wide transition-all flex flex-col items-center gap-2 ${
+                  selectedMode === '3pct_ifpf'
+                    ? 'bg-[#1064AE] text-white border-[#1064AE] shadow-lg scale-[1.02]'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-[#1064AE] hover:text-[#1064AE]'
+                }`}
+              >
+                <span className="text-2xl">📊</span>
+                3% IFPF
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedMode('demais_atividades')}
+                className={`p-4 rounded-2xl border-2 font-black text-[11px] uppercase tracking-wide transition-all flex flex-col items-center gap-2 ${
+                  selectedMode === 'demais_atividades'
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg scale-[1.02]'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-600 hover:text-emerald-600'
+                }`}
+              >
+                <span className="text-2xl">📁</span>
+                Demais Atividades
+              </button>
+            </div>
+          </div>
+
           <div className="flex flex-col md:flex-row w-full items-center justify-between gap-12 mb-16 relative">
             <div className="flex-1 flex justify-center -translate-y-[15%]">
               <img 
@@ -454,42 +492,97 @@ export default function App() {
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="relative group">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input type="email" required placeholder="E-mail corporativo" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} className="w-full pl-12 pr-6 py-4 bg-[#EBF2FF] rounded-2xl outline-none font-bold text-sm text-slate-700" />
+                  <input
+                    type="email"
+                    required
+                    placeholder="E-mail corporativo"
+                    value={loginEmail}
+                    onChange={e => setLoginEmail(e.target.value)}
+                    className="w-full pl-12 pr-6 py-4 bg-[#EBF2FF] rounded-2xl outline-none font-bold text-sm text-slate-700"
+                  />
                 </div>
                 <div className="relative group">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input type="password" required placeholder="••••••••" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} className="w-full pl-12 pr-6 py-4 bg-[#EBF2FF] rounded-2xl outline-none font-bold text-sm text-slate-700" />
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={loginPassword}
+                    onChange={e => setLoginPassword(e.target.value)}
+                    className="w-full pl-12 pr-6 py-4 bg-[#EBF2FF] rounded-2xl outline-none font-bold text-sm text-slate-700"
+                  />
                 </div>
-                {loginError && <p className="text-[10px] font-black text-rose-500 uppercase text-center">Credenciais incorretas</p>}
-                <button type="submit" disabled={isLoggingIn} className="w-full bg-[#111827] text-white font-black py-5 rounded-2xl uppercase tracking-widest text-[11px] flex items-center justify-center gap-3 shadow-xl hover:bg-black transition-all">
-                  {isLoggingIn ? <Loader2 className="animate-spin" size={16} /> : <>ENTRAR NO SISTEMA <ChevronRight size={16} className="text-brand-yellow" /></>}
+                {loginError && (
+                  <p className="text-[10px] font-black text-rose-500 uppercase text-center">
+                    Credenciais incorretas
+                  </p>
+                )}
+                <button
+                  type="submit"
+                  disabled={isLoggingIn || !selectedMode}
+                  className="w-full bg-[#111827] text-white font-black py-5 rounded-2xl uppercase tracking-widest text-[11px] flex items-center justify-center gap-3 shadow-xl hover:bg-black transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isLoggingIn
+                    ? <Loader2 className="animate-spin" size={16} />
+                    : <>ENTRAR NO SISTEMA <ChevronRight size={16} className="text-brand-yellow" /></>
+                  }
                 </button>
+                {!selectedMode && (
+                  <p className="text-[9px] font-black text-slate-400 uppercase text-center tracking-widest">
+                    ↑ Selecione um módulo para continuar
+                  </p>
+                )}
               </form>
             </div>
           </div>
+
           <div className="absolute bottom-0 left-0 w-full h-16 bg-[#111827] flex items-center justify-center overflow-hidden">
             <div className="flex items-center gap-6 text-white/20 shrink-0 px-8">
               <FileText size={24} /><Files size={24} /><Building2 size={24} /><Heart size={24} /><Crown size={24} /><Activity size={24} /><Baby size={24} /><Sun size={24} /><Sparkles size={24} />
             </div>
           </div>
         </div>
-        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-4">Todos os direitos reservados ® Larysson Lara 21.178.711/0001-20</p>
+        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-4">
+          Todos os direitos reservados ® Larysson Lara 21.178.711/0001-20
+        </p>
       </div>
     );
   }
 
+  // ─── ROTEAMENTO POR MÓDULO ────────────────────────────────────────────────
+  if (selectedMode === 'demais_atividades') {
+    return (
+      <AppDemaisAtividades
+        onLogout={() => {
+          setIsAuthenticated(false);
+          setSelectedMode(null);
+        }}
+      />
+    );
+  }
+
+  // ─── MÓDULO 3% IFPF (fluxo original — sem nenhuma alteração) ─────────────
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <header className="bg-white border-b h-16 flex items-center px-8 sticky top-0 z-50">
         <div className="flex-1 font-black uppercase text-slate-900 text-sm flex items-center gap-3">
-          <div className="w-8 h-8 bg-[#1064AE] rounded flex items-center justify-center shadow-lg"><ShieldCheck className="text-white" size={18} /></div>
+          <div className="w-8 h-8 bg-[#1064AE] rounded flex items-center justify-center shadow-lg">
+            <ShieldCheck className="text-white" size={18} />
+          </div>
           DOC.FLOW <span className="text-[#2284BD]">NP</span>
         </div>
         <div className="flex-1 text-center hidden md:block">
-          <p className="text-[10px] font-bold text-slate-400 uppercase italic transition-opacity duration-500" style={{ opacity: phraseOpacity }}>{currentPhrase}</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase italic transition-opacity duration-500" style={{ opacity: phraseOpacity }}>
+            {currentPhrase}
+          </p>
         </div>
         <div className="flex-1 flex justify-end items-center gap-4">
-          <button onClick={() => setIsAuthenticated(false)} className="text-[9px] font-black uppercase text-slate-400 hover:text-rose-500 flex items-center gap-2">LOGOUT <LogOut size={12} /></button>
+          <button
+            onClick={() => { setIsAuthenticated(false); setSelectedMode(null); }}
+            className="text-[9px] font-black uppercase text-slate-400 hover:text-rose-500 flex items-center gap-2"
+          >
+            LOGOUT <LogOut size={12} />
+          </button>
         </div>
       </header>
 
@@ -668,7 +761,10 @@ export default function App() {
                 </div>
               </div>
             </div>
-            <button onClick={() => { setDocuments([]); setStep('upload'); }} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-black flex items-center justify-center gap-3 shadow-xl">
+            <button
+              onClick={() => { setDocuments([]); setStep('upload'); }}
+              className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-black flex items-center justify-center gap-3 shadow-xl"
+            >
               <RotateCcw size={16} /> Iniciar novo processamento
             </button>
           </div>
