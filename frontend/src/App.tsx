@@ -6,7 +6,7 @@ import {
   RefreshCw, ArrowLeft, LogOut,
   Building2, Eye, Shield, X, Download, RotateCcw,
   Mail, ChevronUp, ChevronDown, Edit2, Check, FileText, Files, Lightbulb, User, Lock, ChevronRight,
-  Heart, Crown, Activity, Baby, Sun, Sparkles, Info
+  Heart, Crown, Activity, Baby, Sun, Sparkles, Info, BarChart2, FolderOpen, FileStack
 } from 'lucide-react';
 import { DocumentItem, DocCategory } from './types';
 import { analyzeDocument } from './services/gemini';
@@ -15,6 +15,7 @@ import * as pdfjs from "pdfjs-dist";
 import { PDFDocument } from 'pdf-lib';
 import { jsPDF } from 'jspdf';
 import AppDemaisAtividades from './AppDemaisAtividades';
+import { DocflowV2App } from './docflow-v2';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
 
@@ -44,7 +45,8 @@ declare global {
   }
 }
 
-type AppMode = '3pct_ifpf' | 'demais_atividades' | null;
+// 3 modos: nulo (seleção pós-login), ifpf, demais, docflow
+type AppMode = '3pct_ifpf' | 'demais_atividades' | 'docflow_v2' | null;
 
 const PDFCanvasViewer = ({ url }: { url: string }) => {
   const [loading, setLoading] = useState(true);
@@ -118,8 +120,144 @@ function buildDarfName(originalFileName: string, nome?: string): string {
   return `DARF - ${base}.pdf`;
 }
 
+// ─── PROJECT SELECTOR (pós-login) ─────────────────────────────────────────
+interface ProjectSelectorProps {
+  userEmail: string;
+  onSelect: (mode: AppMode) => void;
+  onLogout: () => void;
+}
+
+const ProjectSelector = ({ userEmail, onSelect, onLogout }: ProjectSelectorProps) => {
+  const [hovered, setHovered] = useState<AppMode>(null);
+
+  const modules = [
+    {
+      id: '3pct_ifpf' as AppMode,
+      icon: <BarChart2 size={36} strokeWidth={1.5} />,
+      label: 'Ação 3% IFPF',
+      description: 'Auditoria e unificação de documentos do repasse IFPF',
+      badge: 'ATIVO',
+      badgeColor: '#059669',
+      badgeBg: '#ecfdf5',
+      accent: '#1064AE',
+      borderHover: '#1064AE',
+    },
+    {
+      id: 'demais_atividades' as AppMode,
+      icon: <FolderOpen size={36} strokeWidth={1.5} />,
+      label: 'Demais Atividades',
+      description: 'Gestão de documentos e atividades operacionais',
+      badge: 'ATIVO',
+      badgeColor: '#059669',
+      badgeBg: '#ecfdf5',
+      accent: '#0d9488',
+      borderHover: '#0d9488',
+    },
+    {
+      id: 'docflow_v2' as AppMode,
+      icon: <FileStack size={36} strokeWidth={1.5} />,
+      label: 'DOC.FLOW v2',
+      description: 'Plataforma avançada de PDF com IA integrada (Gemini)',
+      badge: 'NOVO',
+      badgeColor: '#7c3aed',
+      badgeBg: '#f5f3ff',
+      accent: '#5B4FE8',
+      borderHover: '#5B4FE8',
+    },
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 antialiased">
+      <div className="w-full max-w-3xl">
+        {/* Header */}
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-2 mb-4">
+            <div className="w-10 h-10 bg-[#1064AE] rounded-xl flex items-center justify-center shadow-lg">
+              <ShieldCheck className="text-white" size={20} />
+            </div>
+            <h1 className="text-2xl font-black uppercase text-slate-900 tracking-tight">
+              DOC.FLOW <span className="text-[#1064AE]">NP</span>
+            </h1>
+          </div>
+          <p className="text-[11px] font-black uppercase text-slate-400 tracking-widest">
+            Selecione o módulo de acesso
+          </p>
+          <p className="text-xs text-slate-400 mt-1">
+            Logado como <span className="font-bold text-slate-600">{userEmail}</span>
+          </p>
+        </div>
+
+        {/* Cards grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          {modules.map((mod) => (
+            <button
+              key={mod.id}
+              onClick={() => onSelect(mod.id)}
+              onMouseEnter={() => setHovered(mod.id)}
+              onMouseLeave={() => setHovered(null)}
+              className="group relative bg-white rounded-3xl p-7 text-left border-2 transition-all duration-200 shadow-sm hover:shadow-xl flex flex-col gap-4"
+              style={{
+                borderColor: hovered === mod.id ? mod.borderHover : '#e2e8f0',
+                transform: hovered === mod.id ? 'translateY(-3px)' : 'none',
+              }}
+            >
+              {/* Badge */}
+              <span
+                className="absolute top-4 right-4 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
+                style={{ color: mod.badgeColor, backgroundColor: mod.badgeBg }}
+              >
+                {mod.badge}
+              </span>
+
+              {/* Icon */}
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center transition-colors duration-200"
+                style={{
+                  backgroundColor: hovered === mod.id ? mod.accent : '#f1f5f9',
+                  color: hovered === mod.id ? '#ffffff' : mod.accent,
+                }}
+              >
+                {mod.icon}
+              </div>
+
+              {/* Text */}
+              <div>
+                <h3 className="text-sm font-black text-slate-900 mb-1">{mod.label}</h3>
+                <p className="text-[11px] text-slate-400 leading-relaxed">{mod.description}</p>
+              </div>
+
+              {/* Arrow */}
+              <div
+                className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest transition-colors duration-200"
+                style={{ color: hovered === mod.id ? mod.accent : '#cbd5e1' }}
+              >
+                Acessar <ChevronRight size={12} />
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Logout */}
+        <div className="text-center">
+          <button
+            onClick={onLogout}
+            className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-rose-500 transition-colors"
+          >
+            <LogOut size={12} /> Sair do sistema
+          </button>
+        </div>
+
+        <p className="text-center text-[9px] font-black text-slate-300 uppercase tracking-widest mt-8">
+          Todos os direitos reservados ® Larysson Lara 21.178.711/0001-20
+        </p>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // selectedMode null = mostrar ProjectSelector após login
   const [selectedMode, setSelectedMode] = useState<AppMode>(null);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -164,10 +302,22 @@ export default function App() {
       const user = AUTHORIZED_USERS.find(
         u => u.email.toLowerCase() === loginEmail.toLowerCase() && u.password === loginPassword
       );
-      if (user) setIsAuthenticated(true);
-      else setLoginError(true);
+      if (user) {
+        setIsAuthenticated(true);
+        setSelectedMode(null); // garante que vai para o ProjectSelector
+      } else {
+        setLoginError(true);
+      }
       setIsLoggingIn(false);
     }, 800);
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setSelectedMode(null);
+    setLoginEmail('');
+    setLoginPassword('');
+    setLoginError(false);
   };
 
   const [processingQueue, setProcessingQueue] = useState<string[]>([]);
@@ -434,63 +584,35 @@ export default function App() {
 
   const hasInvalidFiles = documents.some(d => !d.isValid);
 
-  // ─── TELA DE LOGIN ────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FLUXO 1 — TELA DE LOGIN (limpa, sem seletor de módulo)
+  // ═══════════════════════════════════════════════════════════════════════════
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 antialiased">
         <div className="w-full max-w-4xl bg-white rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden flex flex-col items-center p-12 mb-8 relative">
-          <header className="mb-8 text-center relative">
+          <header className="mb-10 text-center relative">
             <h1 className="text-[36px] font-black uppercase text-slate-800 tracking-tight">
               DOC.FLOW <span className="text-[#1064AE]">NP</span>
             </h1>
             <div className="w-20 h-1.5 bg-brand-yellow mx-auto -mt-1 rounded-full"></div>
           </header>
 
-          {/* ── SELETOR DE MÓDULO ── */}
-          <div className="w-full max-w-sm mb-8">
-            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest text-center mb-3">
-              Selecione o módulo de acesso
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setSelectedMode('3pct_ifpf')}
-                className={`p-4 rounded-2xl border-2 font-black text-[11px] uppercase tracking-wide transition-all flex flex-col items-center gap-2 ${
-                  selectedMode === '3pct_ifpf'
-                    ? 'bg-[#1064AE] text-white border-[#1064AE] shadow-lg scale-[1.02]'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-[#1064AE] hover:text-[#1064AE]'
-                }`}
-              >
-                <span className="text-2xl">📊</span>
-                3% IFPF
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedMode('demais_atividades')}
-                className={`p-4 rounded-2xl border-2 font-black text-[11px] uppercase tracking-wide transition-all flex flex-col items-center gap-2 ${
-                  selectedMode === 'demais_atividades'
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg scale-[1.02]'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-600 hover:text-emerald-600'
-                }`}
-              >
-                <span className="text-2xl">📁</span>
-                Demais Atividades
-              </button>
-            </div>
-          </div>
-
           <div className="flex flex-col md:flex-row w-full items-center justify-between gap-12 mb-16 relative">
-            <div className="flex-1 flex justify-center -translate-y-[15%]">
+            {/* Logo HPP */}
+            <div className="flex-1 flex justify-center -translate-y-[10%]">
               <img 
                 src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQZ3shKbxmtt8-3491Yd_wsh0H313NXxRLr5w&s" 
-                alt="HPP" 
+                alt="Hospital Pequeno Príncipe" 
                 className="h-48 w-auto object-contain" 
                 referrerPolicy="no-referrer"
               />
             </div>
+
+            {/* Formulário de login */}
             <div className="flex-1 max-w-sm w-full">
               <form onSubmit={handleLogin} className="space-y-4">
-                <div className="relative group">
+                <div className="relative">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <input
                     type="email"
@@ -501,12 +623,12 @@ export default function App() {
                     className="w-full pl-12 pr-6 py-4 bg-[#EBF2FF] rounded-2xl outline-none font-bold text-sm text-slate-700"
                   />
                 </div>
-                <div className="relative group">
+                <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <input
                     type="password"
                     required
-                    placeholder="••••••••"
+                    placeholder="Senha"
                     value={loginPassword}
                     onChange={e => setLoginPassword(e.target.value)}
                     className="w-full pl-12 pr-6 py-4 bg-[#EBF2FF] rounded-2xl outline-none font-bold text-sm text-slate-700"
@@ -514,28 +636,24 @@ export default function App() {
                 </div>
                 {loginError && (
                   <p className="text-[10px] font-black text-rose-500 uppercase text-center">
-                    Credenciais incorretas
+                    Credenciais incorretas. Verifique e tente novamente.
                   </p>
                 )}
                 <button
                   type="submit"
-                  disabled={isLoggingIn || !selectedMode}
-                  className="w-full bg-[#111827] text-white font-black py-5 rounded-2xl uppercase tracking-widest text-[11px] flex items-center justify-center gap-3 shadow-xl hover:bg-black transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  disabled={isLoggingIn}
+                  className="w-full bg-[#111827] text-white font-black py-5 rounded-2xl uppercase tracking-widest text-[11px] flex items-center justify-center gap-3 shadow-xl hover:bg-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoggingIn
-                    ? <Loader2 className="animate-spin" size={16} />
-                    : <>ENTRAR NO SISTEMA <ChevronRight size={16} className="text-brand-yellow" /></>
+                    ? <><Loader2 className="animate-spin" size={16} /> Autenticando...</>
+                    : <>ENTRAR NO SISTEMA <ChevronRight size={16} /></>
                   }
                 </button>
-                {!selectedMode && (
-                  <p className="text-[9px] font-black text-slate-400 uppercase text-center tracking-widest">
-                    ↑ Selecione um módulo para continuar
-                  </p>
-                )}
               </form>
             </div>
           </div>
 
+          {/* Footer decorativo */}
           <div className="absolute bottom-0 left-0 w-full h-16 bg-[#111827] flex items-center justify-center overflow-hidden">
             <div className="flex items-center gap-6 text-white/20 shrink-0 px-8">
               <FileText size={24} /><Files size={24} /><Building2 size={24} /><Heart size={24} /><Crown size={24} /><Activity size={24} /><Baby size={24} /><Sun size={24} /><Sparkles size={24} />
@@ -549,19 +667,45 @@ export default function App() {
     );
   }
 
-  // ─── ROTEAMENTO POR MÓDULO ────────────────────────────────────────────────
-  if (selectedMode === 'demais_atividades') {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FLUXO 2 — PROJECT SELECTOR (pós-login, módulo ainda não selecionado)
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (isAuthenticated && selectedMode === null) {
     return (
-      <AppDemaisAtividades
-        onLogout={() => {
-          setIsAuthenticated(false);
-          setSelectedMode(null);
-        }}
+      <ProjectSelector
+        userEmail={loginEmail}
+        onSelect={(mode) => setSelectedMode(mode)}
+        onLogout={handleLogout}
       />
     );
   }
 
-  // ─── MÓDULO 3% IFPF (fluxo original — sem nenhuma alteração) ─────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FLUXO 3 — DOC.FLOW v2 (módulo novo isolado)
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (selectedMode === 'docflow_v2') {
+    return (
+      <DocflowV2App
+        userEmail={loginEmail}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FLUXO 4 — DEMAIS ATIVIDADES
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (selectedMode === 'demais_atividades') {
+    return (
+      <AppDemaisAtividades
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FLUXO 5 — MÓDULO 3% IFPF (sistema original — SEM NENHUMA ALTERAÇÃO)
+  // ═══════════════════════════════════════════════════════════════════════════
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <header className="bg-white border-b h-16 flex items-center px-8 sticky top-0 z-50">
@@ -578,7 +722,13 @@ export default function App() {
         </div>
         <div className="flex-1 flex justify-end items-center gap-4">
           <button
-            onClick={() => { setIsAuthenticated(false); setSelectedMode(null); }}
+            onClick={() => setSelectedMode(null)}
+            className="text-[9px] font-black uppercase text-slate-400 hover:text-[#1064AE] flex items-center gap-2"
+          >
+            ← Módulos
+          </button>
+          <button
+            onClick={handleLogout}
             className="text-[9px] font-black uppercase text-slate-400 hover:text-rose-500 flex items-center gap-2"
           >
             LOGOUT <LogOut size={12} />
