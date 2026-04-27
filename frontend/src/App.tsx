@@ -6,7 +6,7 @@ import {
   RefreshCw, ArrowLeft, LogOut,
   Building2, Eye, Shield, X, Download, RotateCcw,
   Mail, ChevronUp, ChevronDown, Edit2, Check, FileText, Files, Lightbulb, User, Lock, ChevronRight,
-  Heart, Crown, Activity, Baby, Sun, Sparkles, Info, BarChart2, FolderOpen, FileStack
+  Heart, Crown, Activity, Baby, Sun, Sparkles, Info, BarChart2, FileStack
 } from 'lucide-react';
 import { DocumentItem, DocCategory } from './types';
 import { analyzeDocument } from './services/gemini';
@@ -45,8 +45,8 @@ declare global {
   }
 }
 
-// 3 modos: nulo (seleção pós-login), ifpf, demais, docflow
-type AppMode = '3pct_ifpf' | 'demais_atividades' | 'docflow_v2' | null;
+// 2 módulos + null (seleção pós-login)
+type AppMode = '3pct_ifpf' | 'docflow_v2' | null;
 
 const PDFCanvasViewer = ({ url }: { url: string }) => {
   const [loading, setLoading] = useState(true);
@@ -120,7 +120,7 @@ function buildDarfName(originalFileName: string, nome?: string): string {
   return `DARF - ${base}.pdf`;
 }
 
-// ─── PROJECT SELECTOR (pós-login) ─────────────────────────────────────────
+// ─── PROJECT SELECTOR (pós-login) — 2 cards ─────────────────────────────────
 interface ProjectSelectorProps {
   userEmail: string;
   onSelect: (mode: AppMode) => void;
@@ -133,9 +133,9 @@ const ProjectSelector = ({ userEmail, onSelect, onLogout }: ProjectSelectorProps
   const modules = [
     {
       id: '3pct_ifpf' as AppMode,
-      icon: <BarChart2 size={36} strokeWidth={1.5} />,
+      icon: <BarChart2 size={40} strokeWidth={1.5} />,
       label: 'Ação 3% IFPF',
-      description: 'Auditoria e unificação de documentos do repasse IFPF',
+      description: 'Auditoria e unificação de documentos para repasse IFPF',
       badge: 'ATIVO',
       badgeColor: '#059669',
       badgeBg: '#ecfdf5',
@@ -143,21 +143,10 @@ const ProjectSelector = ({ userEmail, onSelect, onLogout }: ProjectSelectorProps
       borderHover: '#1064AE',
     },
     {
-      id: 'demais_atividades' as AppMode,
-      icon: <FolderOpen size={36} strokeWidth={1.5} />,
-      label: 'Demais Atividades',
-      description: 'Gestão de documentos e atividades operacionais',
-      badge: 'ATIVO',
-      badgeColor: '#059669',
-      badgeBg: '#ecfdf5',
-      accent: '#0d9488',
-      borderHover: '#0d9488',
-    },
-    {
       id: 'docflow_v2' as AppMode,
-      icon: <FileStack size={36} strokeWidth={1.5} />,
+      icon: <FileStack size={40} strokeWidth={1.5} />,
       label: 'DOC.FLOW v2',
-      description: 'Plataforma avançada de PDF com IA integrada (Gemini)',
+      description: 'Plataforma avançada de PDF com edição e IA Gemini integrada',
       badge: 'NOVO',
       badgeColor: '#7c3aed',
       badgeBg: '#f5f3ff',
@@ -168,10 +157,10 @@ const ProjectSelector = ({ userEmail, onSelect, onLogout }: ProjectSelectorProps
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 antialiased">
-      <div className="w-full max-w-3xl">
+      <div className="w-full max-w-2xl">
         {/* Header */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 mb-4">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-[#1064AE] rounded-xl flex items-center justify-center shadow-lg">
               <ShieldCheck className="text-white" size={20} />
             </div>
@@ -179,31 +168,31 @@ const ProjectSelector = ({ userEmail, onSelect, onLogout }: ProjectSelectorProps
               DOC.FLOW <span className="text-[#1064AE]">NP</span>
             </h1>
           </div>
-          <p className="text-[11px] font-black uppercase text-slate-400 tracking-widest">
+          <p className="text-[11px] font-black uppercase text-slate-400 tracking-widest mb-1">
             Selecione o módulo de acesso
           </p>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-400">
             Logado como <span className="font-bold text-slate-600">{userEmail}</span>
           </p>
         </div>
 
-        {/* Cards grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        {/* 2 Cards lado a lado */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
           {modules.map((mod) => (
             <button
               key={mod.id}
               onClick={() => onSelect(mod.id)}
               onMouseEnter={() => setHovered(mod.id)}
               onMouseLeave={() => setHovered(null)}
-              className="group relative bg-white rounded-3xl p-7 text-left border-2 transition-all duration-200 shadow-sm hover:shadow-xl flex flex-col gap-4"
+              className="group relative bg-white rounded-3xl p-8 text-left border-2 transition-all duration-200 shadow-sm hover:shadow-xl flex flex-col gap-5"
               style={{
                 borderColor: hovered === mod.id ? mod.borderHover : '#e2e8f0',
-                transform: hovered === mod.id ? 'translateY(-3px)' : 'none',
+                transform: hovered === mod.id ? 'translateY(-4px)' : 'none',
               }}
             >
               {/* Badge */}
               <span
-                className="absolute top-4 right-4 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
+                className="absolute top-5 right-5 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full"
                 style={{ color: mod.badgeColor, backgroundColor: mod.badgeBg }}
               >
                 {mod.badge}
@@ -211,10 +200,11 @@ const ProjectSelector = ({ userEmail, onSelect, onLogout }: ProjectSelectorProps
 
               {/* Icon */}
               <div
-                className="w-14 h-14 rounded-2xl flex items-center justify-center transition-colors duration-200"
+                className="w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-200"
                 style={{
                   backgroundColor: hovered === mod.id ? mod.accent : '#f1f5f9',
                   color: hovered === mod.id ? '#ffffff' : mod.accent,
+                  transform: hovered === mod.id ? 'scale(1.05)' : 'scale(1)',
                 }}
               >
                 {mod.icon}
@@ -222,16 +212,16 @@ const ProjectSelector = ({ userEmail, onSelect, onLogout }: ProjectSelectorProps
 
               {/* Text */}
               <div>
-                <h3 className="text-sm font-black text-slate-900 mb-1">{mod.label}</h3>
+                <h3 className="text-base font-black text-slate-900 mb-1.5">{mod.label}</h3>
                 <p className="text-[11px] text-slate-400 leading-relaxed">{mod.description}</p>
               </div>
 
-              {/* Arrow */}
+              {/* Arrow CTA */}
               <div
-                className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest transition-colors duration-200"
+                className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest mt-auto transition-colors duration-200"
                 style={{ color: hovered === mod.id ? mod.accent : '#cbd5e1' }}
               >
-                Acessar <ChevronRight size={12} />
+                Acessar módulo <ChevronRight size={13} />
               </div>
             </button>
           ))}
@@ -257,7 +247,6 @@ const ProjectSelector = ({ userEmail, onSelect, onLogout }: ProjectSelectorProps
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  // selectedMode null = mostrar ProjectSelector após login
   const [selectedMode, setSelectedMode] = useState<AppMode>(null);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -273,7 +262,6 @@ export default function App() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [tempName, setTempName] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showManifesto, setShowManifesto] = useState(false);
   const [errorModal, setErrorModal] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -304,7 +292,7 @@ export default function App() {
       );
       if (user) {
         setIsAuthenticated(true);
-        setSelectedMode(null); // garante que vai para o ProjectSelector
+        setSelectedMode(null);
       } else {
         setLoginError(true);
       }
@@ -337,18 +325,12 @@ export default function App() {
 
   const processDocument = async (doc: DocumentItem) => {
     setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, status: 'processing' } : d));
-    
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error("Tempo limite de análise excedido (120s)")), 120000)
     );
-
     try {
-      console.log(`[Queue] Iniciando: ${doc.file.name}`);
-      const startTime = Date.now();
-      
       let b64 = '';
       let mimeType = doc.file.type;
-
       if (doc.file.type === 'application/pdf') {
         const convertPromise = (async () => {
           const arrayBuffer = await doc.file.arrayBuffer();
@@ -376,37 +358,21 @@ export default function App() {
         });
         b64 = await Promise.race([readPromise, timeoutPromise]) as string;
       }
-      
       const result = await Promise.race([
         analyzeDocument(b64, mimeType, doc.file.name),
         timeoutPromise
       ]) as any;
-
-      console.log(`[Queue] Sucesso: ${doc.file.name} -> categoria: ${result.category} | nome: ${result.data?.nome} (${((Date.now() - startTime)/1000).toFixed(1)}s)`);
-      
       setDocuments(prev => {
         const updated = prev.map(d => {
           if (d.id === doc.id) {
             const isDarf = (result.category || '').trim().toLowerCase().includes('darf');
-            let newName: string;
-            if (isDarf) {
-              newName = buildDarfName(doc.file.name, result.data?.nome);
-            } else {
-              newName = result.suggestedName || d.customName;
-            }
-            console.log(`[Queue] Nome aplicado: "${newName}" | isDarf: ${isDarf} | categoria: "${result.category}"`);
-            return { 
-              ...d, 
-              status: 'done',
-              aiCategory: result.category,
-              aiConfidence: result.confidence,
-              aiData: result.data,
-              customName: newName
-            };
+            const newName = isDarf
+              ? buildDarfName(doc.file.name, result.data?.nome)
+              : result.suggestedName || d.customName;
+            return { ...d, status: 'done', aiCategory: result.category, aiConfidence: result.confidence, aiData: result.data, customName: newName };
           }
           return d;
         });
-
         return [...updated].sort((a, b) => {
           const getPriority = (doc: DocumentItem) => {
             if (doc.status !== 'done') return 99;
@@ -416,19 +382,13 @@ export default function App() {
             if (cat.includes('mail')) return 3;
             return 4;
           };
-          const pA = getPriority(a);
-          const pB = getPriority(b);
+          const pA = getPriority(a), pB = getPriority(b);
           if (pA !== pB) return pA - pB;
           return a.originalIndex - b.originalIndex;
         });
       });
     } catch (err: any) {
-      console.error(`[Queue] Erro em ${doc.file.name}:`, err.message);
-      setDocuments(prev => prev.map(d => d.id === doc.id ? { 
-        ...d, 
-        status: 'error', 
-        errorMessage: err?.message || "Erro na análise." 
-      } : d));
+      setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, status: 'error', errorMessage: err?.message || "Erro na análise." } : d));
     } finally {
       setProcessingQueue(prev => prev.filter(id => id !== doc.id));
     }
@@ -452,54 +412,30 @@ export default function App() {
         pdf.destroy();
         return dataUrl;
       }
-    } catch (err) {
-      console.error("[Thumb] Erro ao gerar miniatura do PDF:", err);
-    }
+    } catch (err) {}
     return undefined;
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []) as File[];
     if (selectedFiles.length === 0) return;
-
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
     const newDocs: DocumentItem[] = [];
     let hasInvalid = false;
-
     for (let i = 0; i < selectedFiles.length; i++) {
       const file = selectedFiles[i];
       const isValid = allowedTypes.includes(file.type);
       if (!isValid) hasInvalid = true;
-
       const id = Math.random().toString(36).substring(2, 11);
       const previewUrl = URL.createObjectURL(file);
-      
-      newDocs.push({
-        id,
-        file,
-        originalIndex: documents.length + i,
-        status: 'pending',
-        isValid,
-        previewUrl,
-        customName: file.name
-      });
+      newDocs.push({ id, file, originalIndex: documents.length + i, status: 'pending', isValid, previewUrl, customName: file.name });
     }
-
-    if (hasInvalid) {
-      setErrorModal({ 
-        show: true, 
-        message: 'Alguns arquivos possuem formatos não suportados. Por favor, utilize apenas PDF, JPG ou PNG.' 
-      });
-    }
-
+    if (hasInvalid) setErrorModal({ show: true, message: 'Alguns arquivos possuem formatos não suportados. Por favor, utilize apenas PDF, JPG ou PNG.' });
     setDocuments(prev => [...prev, ...newDocs]);
     if (fileInputRef.current) fileInputRef.current.value = '';
-
     newDocs.filter(d => d.file.type === 'application/pdf').forEach(async (doc) => {
       const thumb = await generatePdfThumbnail(doc.file);
-      if (thumb) {
-        setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, thumbnailUrl: thumb } : d));
-      }
+      if (thumb) setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, thumbnailUrl: thumb } : d));
     });
   };
 
@@ -520,20 +456,13 @@ export default function App() {
   const handleProcessAll = async () => {
     setIsProcessing(true);
     try {
-      let allAnalyzed = false;
-      let attempts = 0;
+      let allAnalyzed = false, attempts = 0;
       while (!allAnalyzed && attempts < 20) {
         const unfinished = documents.filter(d => (d.status === 'pending' || d.status === 'processing') && d.isValid);
-        if (unfinished.length === 0) {
-          allAnalyzed = true;
-        } else {
-          await new Promise(r => setTimeout(r, 1000));
-          attempts++;
-        }
+        if (unfinished.length === 0) allAnalyzed = true;
+        else { await new Promise(r => setTimeout(r, 1000)); attempts++; }
       }
-
       const mergedPdf = await PDFDocument.create();
-      
       for (const docItem of documents) {
         const arrayBuffer = await docItem.file.arrayBuffer();
         if (docItem.file.type === 'application/pdf') {
@@ -542,51 +471,38 @@ export default function App() {
           copiedPages.forEach((page) => mergedPdf.addPage(page));
         } else if (docItem.file.type.startsWith('image/')) {
           let image;
-          if (docItem.file.type === 'image/jpeg' || docItem.file.type === 'image/jpg') {
-            image = await mergedPdf.embedJpg(arrayBuffer);
-          } else if (docItem.file.type === 'image/png') {
-            image = await mergedPdf.embedPng(arrayBuffer);
-          } else continue;
+          if (docItem.file.type === 'image/jpeg' || docItem.file.type === 'image/jpg') image = await mergedPdf.embedJpg(arrayBuffer);
+          else if (docItem.file.type === 'image/png') image = await mergedPdf.embedPng(arrayBuffer);
+          else continue;
           const page = mergedPdf.addPage([image.width, image.height]);
           page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
         }
       }
-      
       const pdfBytes = await mergedPdf.save();
       const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
-
       const darfDoc = documents.find(d => (d.aiCategory || '').toLowerCase().includes('darf'));
-      const baseName = darfDoc
-        ? darfDoc.customName.replace(/\.[^/.]+$/, "")
-        : documents[0]?.customName.replace(/\.[^/.]+$/, "") || "Documento";
-      const fileName = `${baseName}.pdf`;
-
+      const baseName = darfDoc ? darfDoc.customName.replace(/\.[^/.]+$/, "") : documents[0]?.customName.replace(/\.[^/.]+$/, "") || "Documento";
       const link = document.createElement('a');
       link.href = url;
-      link.download = fileName;
+      link.download = `${baseName}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
-
       setProtocol(`HPP-UNIFY-${Date.now().toString(36).toUpperCase()}`);
       setStep('finalized');
     } catch (err) {
-      console.error("Erro ao unificar documentos:", err);
       alert("Erro ao gerar PDF unificado.");
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const removeFile = (id: string) => {
-    setDocuments(prev => prev.filter(d => d.id !== id));
-  };
-
+  const removeFile = (id: string) => setDocuments(prev => prev.filter(d => d.id !== id));
   const hasInvalidFiles = documents.some(d => !d.isValid);
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // FLUXO 1 — TELA DE LOGIN (limpa, sem seletor de módulo)
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════
+  // FLUXO 1 — LOGIN
+  // ════════════════════════════════════════════════════════════════
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 antialiased">
@@ -599,7 +515,6 @@ export default function App() {
           </header>
 
           <div className="flex flex-col md:flex-row w-full items-center justify-between gap-12 mb-16 relative">
-            {/* Logo HPP */}
             <div className="flex-1 flex justify-center -translate-y-[10%]">
               <img 
                 src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQZ3shKbxmtt8-3491Yd_wsh0H313NXxRLr5w&s" 
@@ -608,104 +523,52 @@ export default function App() {
                 referrerPolicy="no-referrer"
               />
             </div>
-
-            {/* Formulário de login */}
             <div className="flex-1 max-w-sm w-full">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="relative">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input
-                    type="email"
-                    required
-                    placeholder="E-mail corporativo"
-                    value={loginEmail}
-                    onChange={e => setLoginEmail(e.target.value)}
-                    className="w-full pl-12 pr-6 py-4 bg-[#EBF2FF] rounded-2xl outline-none font-bold text-sm text-slate-700"
-                  />
+                  <input type="email" required placeholder="E-mail corporativo" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} className="w-full pl-12 pr-6 py-4 bg-[#EBF2FF] rounded-2xl outline-none font-bold text-sm text-slate-700" />
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input
-                    type="password"
-                    required
-                    placeholder="Senha"
-                    value={loginPassword}
-                    onChange={e => setLoginPassword(e.target.value)}
-                    className="w-full pl-12 pr-6 py-4 bg-[#EBF2FF] rounded-2xl outline-none font-bold text-sm text-slate-700"
-                  />
+                  <input type="password" required placeholder="Senha" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} className="w-full pl-12 pr-6 py-4 bg-[#EBF2FF] rounded-2xl outline-none font-bold text-sm text-slate-700" />
                 </div>
-                {loginError && (
-                  <p className="text-[10px] font-black text-rose-500 uppercase text-center">
-                    Credenciais incorretas. Verifique e tente novamente.
-                  </p>
-                )}
-                <button
-                  type="submit"
-                  disabled={isLoggingIn}
-                  className="w-full bg-[#111827] text-white font-black py-5 rounded-2xl uppercase tracking-widest text-[11px] flex items-center justify-center gap-3 shadow-xl hover:bg-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isLoggingIn
-                    ? <><Loader2 className="animate-spin" size={16} /> Autenticando...</>
-                    : <>ENTRAR NO SISTEMA <ChevronRight size={16} /></>
-                  }
+                {loginError && <p className="text-[10px] font-black text-rose-500 uppercase text-center">Credenciais incorretas. Verifique e tente novamente.</p>}
+                <button type="submit" disabled={isLoggingIn} className="w-full bg-[#111827] text-white font-black py-5 rounded-2xl uppercase tracking-widest text-[11px] flex items-center justify-center gap-3 shadow-xl hover:bg-black transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isLoggingIn ? <><Loader2 className="animate-spin" size={16} /> Autenticando...</> : <>ENTRAR NO SISTEMA <ChevronRight size={16} /></>}
                 </button>
               </form>
             </div>
           </div>
 
-          {/* Footer decorativo */}
           <div className="absolute bottom-0 left-0 w-full h-16 bg-[#111827] flex items-center justify-center overflow-hidden">
             <div className="flex items-center gap-6 text-white/20 shrink-0 px-8">
               <FileText size={24} /><Files size={24} /><Building2 size={24} /><Heart size={24} /><Crown size={24} /><Activity size={24} /><Baby size={24} /><Sun size={24} /><Sparkles size={24} />
             </div>
           </div>
         </div>
-        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-4">
-          Todos os direitos reservados ® Larysson Lara 21.178.711/0001-20
-        </p>
+        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-4">Todos os direitos reservados ® Larysson Lara 21.178.711/0001-20</p>
       </div>
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // FLUXO 2 — PROJECT SELECTOR (pós-login, módulo ainda não selecionado)
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════
+  // FLUXO 2 — PROJECT SELECTOR (pós-login)
+  // ════════════════════════════════════════════════════════════════
   if (isAuthenticated && selectedMode === null) {
-    return (
-      <ProjectSelector
-        userEmail={loginEmail}
-        onSelect={(mode) => setSelectedMode(mode)}
-        onLogout={handleLogout}
-      />
-    );
+    return <ProjectSelector userEmail={loginEmail} onSelect={setSelectedMode} onLogout={handleLogout} />;
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // FLUXO 3 — DOC.FLOW v2 (módulo novo isolado)
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════
+  // FLUXO 3 — DOC.FLOW v2
+  // ════════════════════════════════════════════════════════════════
   if (selectedMode === 'docflow_v2') {
-    return (
-      <DocflowV2App
-        userEmail={loginEmail}
-        onLogout={handleLogout}
-      />
-    );
+    return <DocflowV2App userEmail={loginEmail} onLogout={handleLogout} />;
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // FLUXO 4 — DEMAIS ATIVIDADES
-  // ═══════════════════════════════════════════════════════════════════════════
-  if (selectedMode === 'demais_atividades') {
-    return (
-      <AppDemaisAtividades
-        onLogout={handleLogout}
-      />
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // FLUXO 5 — MÓDULO 3% IFPF (sistema original — SEM NENHUMA ALTERAÇÃO)
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════
+  // FLUXO 4 — 3% IFPF (sistema original — SEM ALTERAÇÕES)
+  // ════════════════════════════════════════════════════════════════
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <header className="bg-white border-b h-16 flex items-center px-8 sticky top-0 z-50">
@@ -716,21 +579,13 @@ export default function App() {
           DOC.FLOW <span className="text-[#2284BD]">NP</span>
         </div>
         <div className="flex-1 text-center hidden md:block">
-          <p className="text-[10px] font-bold text-slate-400 uppercase italic transition-opacity duration-500" style={{ opacity: phraseOpacity }}>
-            {currentPhrase}
-          </p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase italic transition-opacity duration-500" style={{ opacity: phraseOpacity }}>{currentPhrase}</p>
         </div>
         <div className="flex-1 flex justify-end items-center gap-4">
-          <button
-            onClick={() => setSelectedMode(null)}
-            className="text-[9px] font-black uppercase text-slate-400 hover:text-[#1064AE] flex items-center gap-2"
-          >
+          <button onClick={() => setSelectedMode(null)} className="text-[9px] font-black uppercase text-slate-400 hover:text-[#1064AE] flex items-center gap-2">
             ← Módulos
           </button>
-          <button
-            onClick={handleLogout}
-            className="text-[9px] font-black uppercase text-slate-400 hover:text-rose-500 flex items-center gap-2"
-          >
+          <button onClick={handleLogout} className="text-[9px] font-black uppercase text-slate-400 hover:text-rose-500 flex items-center gap-2">
             LOGOUT <LogOut size={12} />
           </button>
         </div>
@@ -767,10 +622,7 @@ export default function App() {
                     <span className="text-[11px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-2">
                       <Layers size={14} className="text-[#1064AE]"/> {documents.length} Arquivos no lote
                     </span>
-                    <button 
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-white border border-[#1064AE]/20 text-[#1064AE] text-[10px] font-black uppercase rounded-lg hover:bg-[#1064AE] hover:text-white transition-all shadow-sm"
-                    >
+                    <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-3 py-1.5 bg-white border border-[#1064AE]/20 text-[#1064AE] text-[10px] font-black uppercase rounded-lg hover:bg-[#1064AE] hover:text-white transition-all shadow-sm">
                       <Upload size={12} /> Adicionar mais arquivos
                     </button>
                   </div>
@@ -780,22 +632,9 @@ export default function App() {
                   {documents.map((doc, index) => (
                     <div key={doc.id} className={`p-5 flex items-center gap-6 group hover:bg-slate-50/80 transition-all relative ${!doc.isValid ? 'bg-rose-50/30' : ''}`}>
                       <div className="flex flex-col gap-1">
-                        <button 
-                          disabled={index === 0} 
-                          onClick={() => moveFile(index, 'up')} 
-                          className="p-1.5 text-black hover:text-[#1064AE] hover:bg-white rounded-md shadow-sm disabled:opacity-0 transition-all"
-                        >
-                          <ChevronUp size={18} strokeWidth={3} />
-                        </button>
-                        <button 
-                          disabled={index === documents.length - 1} 
-                          onClick={() => moveFile(index, 'down')} 
-                          className="p-1.5 text-black hover:text-[#1064AE] hover:bg-white rounded-md shadow-sm disabled:opacity-0 transition-all"
-                        >
-                          <ChevronDown size={18} strokeWidth={3} />
-                        </button>
+                        <button disabled={index === 0} onClick={() => moveFile(index, 'up')} className="p-1.5 text-black hover:text-[#1064AE] hover:bg-white rounded-md shadow-sm disabled:opacity-0 transition-all"><ChevronUp size={18} strokeWidth={3} /></button>
+                        <button disabled={index === documents.length - 1} onClick={() => moveFile(index, 'down')} className="p-1.5 text-black hover:text-[#1064AE] hover:bg-white rounded-md shadow-sm disabled:opacity-0 transition-all"><ChevronDown size={18} strokeWidth={3} /></button>
                       </div>
-
                       <div className="relative w-20 h-24 bg-slate-100 rounded-xl overflow-hidden border border-slate-200 shadow-inner shrink-0 group/thumb">
                         {doc.file.type.startsWith('image/') ? (
                           <img src={doc.previewUrl} className="w-full h-full object-cover" alt="Preview" />
@@ -808,72 +647,37 @@ export default function App() {
                           </div>
                         )}
                         {doc.status === 'processing' && (
-                          <div className="absolute inset-0 bg-[#1064AE]/40 backdrop-blur-[2px] flex items-center justify-center">
-                            <Loader2 className="animate-spin text-white" size={24} />
-                          </div>
+                          <div className="absolute inset-0 bg-[#1064AE]/40 backdrop-blur-[2px] flex items-center justify-center"><Loader2 className="animate-spin text-white" size={24} /></div>
                         )}
-                        <button 
-                          onClick={() => setPreviewFile(doc)}
-                          className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity"
-                        >
+                        <button onClick={() => setPreviewFile(doc)} className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
                           <Eye className="text-white" size={20} />
                         </button>
                       </div>
-
                       <div className="flex-1 min-w-0 py-1">
                         <div className="flex items-center gap-3 mb-2">
                           {editingId === doc.id ? (
                             <div className="flex items-center gap-2 flex-1">
-                              <input 
-                                autoFocus 
-                                value={tempName} 
-                                onChange={e => setTempName(e.target.value)} 
-                                onKeyDown={e => e.key === 'Enter' && saveName(doc.id)} 
-                                className="flex-1 bg-white border-2 border-[#1064AE] rounded-xl px-3 py-1.5 text-xs font-bold outline-none shadow-lg" 
-                              />
+                              <input autoFocus value={tempName} onChange={e => setTempName(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveName(doc.id)} className="flex-1 bg-white border-2 border-[#1064AE] rounded-xl px-3 py-1.5 text-xs font-bold outline-none shadow-lg" />
                               <button onClick={() => saveName(doc.id)} className="bg-[#1064AE] text-white p-2 rounded-xl hover:bg-slate-900 shadow-md"><Check size={16}/></button>
                             </div>
                           ) : (
                             <div className="flex flex-col gap-0.5 group/name">
                               <div className="flex items-center gap-2">
-                                <h4 className="text-sm font-black text-slate-800 truncate max-w-md" title={doc.customName}>
-                                  {doc.customName}
-                                </h4>
-                                <button
-                                  onClick={() => { setEditingId(doc.id); setTempName(doc.customName); }}
-                                  className="opacity-0 group-hover/name:opacity-100 p-1 text-slate-400 hover:text-[#1064AE] transition-all shrink-0"
-                                  title="Editar nome"
-                                >
-                                  <Edit2 size={14}/>
-                                </button>
+                                <h4 className="text-sm font-black text-slate-800 truncate max-w-md" title={doc.customName}>{doc.customName}</h4>
+                                <button onClick={() => { setEditingId(doc.id); setTempName(doc.customName); }} className="opacity-0 group-hover/name:opacity-100 p-1 text-slate-400 hover:text-[#1064AE] transition-all shrink-0"><Edit2 size={14}/></button>
                               </div>
-                              {(doc.customName !== doc.file.name) && (
-                                <span className="text-[10px] font-medium text-slate-400 truncate max-w-xs italic" title={doc.file.name}>
-                                  {doc.file.name}
-                                </span>
-                              )}
+                              {doc.customName !== doc.file.name && <span className="text-[10px] font-medium text-slate-400 truncate max-w-xs italic">{doc.file.name}</span>}
                             </div>
                           )}
                         </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {!doc.isValid && (
-                            <div className="flex items-center gap-1.5 px-3 py-1 bg-rose-50 border border-rose-200 text-rose-600 rounded-full">
-                              <AlertTriangle size={10} />
-                              <span className="text-[9px] font-black uppercase tracking-wider">Formato Não Suportado</span>
-                            </div>
-                          )}
-                        </div>
+                        {!doc.isValid && (
+                          <div className="flex items-center gap-1.5 px-3 py-1 bg-rose-50 border border-rose-200 text-rose-600 rounded-full w-fit">
+                            <AlertTriangle size={10} />
+                            <span className="text-[9px] font-black uppercase tracking-wider">Formato Não Suportado</span>
+                          </div>
+                        )}
                       </div>
-
-                      <div className="flex items-center gap-2">
-                        <button 
-                          onClick={() => removeFile(doc.id)} 
-                          className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"
-                          title="Remover"
-                        >
-                          <Trash2 size={20} />
-                        </button>
-                      </div>
+                      <button onClick={() => removeFile(doc.id)} className="p-3 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"><Trash2 size={20} /></button>
                     </div>
                   ))}
                 </div>
@@ -881,11 +685,7 @@ export default function App() {
             )}
 
             {documents.length > 0 && (
-              <button 
-                disabled={isProcessing || hasInvalidFiles}
-                onClick={handleProcessAll}
-                className="w-full bg-[#1064AE] hover:bg-[#0d528f] text-white p-6 rounded-[2rem] shadow-xl transition-all flex items-center justify-center gap-4 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button disabled={isProcessing || hasInvalidFiles} onClick={handleProcessAll} className="w-full bg-[#1064AE] hover:bg-[#0d528f] text-white p-6 rounded-[2rem] shadow-xl transition-all flex items-center justify-center gap-4 disabled:opacity-50 disabled:cursor-not-allowed">
                 {isProcessing ? <Loader2 className="animate-spin" size={24} /> : <Files size={24} />}
                 <span className="font-black uppercase tracking-widest text-sm">Unir Documentos</span>
               </button>
@@ -904,17 +704,12 @@ export default function App() {
               <p className="text-[10px] font-black text-slate-500 uppercase mb-4 tracking-tighter flex items-center justify-center gap-2">
                 <CheckCircle2 size={12} className="text-emerald-500"/> Auditoria Digital Finalizada
               </p>
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 text-[10px] font-black uppercase text-slate-600">
-                  <span>Relatório de Processamento (Borderô Auditável)</span>
-                  <CheckCircle2 size={14} className="text-emerald-500"/>
-                </div>
+              <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 text-[10px] font-black uppercase text-slate-600">
+                <span>Relatório de Processamento (Borderô Auditável)</span>
+                <CheckCircle2 size={14} className="text-emerald-500"/>
               </div>
             </div>
-            <button
-              onClick={() => { setDocuments([]); setStep('upload'); }}
-              className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-black flex items-center justify-center gap-3 shadow-xl"
-            >
+            <button onClick={() => { setDocuments([]); setStep('upload'); }} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-black flex items-center justify-center gap-3 shadow-xl">
               <RotateCcw size={16} /> Iniciar novo processamento
             </button>
           </div>
@@ -929,9 +724,7 @@ export default function App() {
                 <FileSearch className="text-[#1064AE]" size={20} />
                 <h3 className="text-xs font-black uppercase text-slate-800 tracking-widest truncate max-w-lg">{previewFile.customName}</h3>
               </div>
-              <button onClick={() => setPreviewFile(null)} className="p-3 bg-slate-50 text-slate-400 hover:text-rose-500 rounded-full transition-all border hover:rotate-90">
-                <X size={20} />
-              </button>
+              <button onClick={() => setPreviewFile(null)} className="p-3 bg-slate-50 text-slate-400 hover:text-rose-500 rounded-full transition-all border hover:rotate-90"><X size={20} /></button>
             </header>
             <div className="flex-1 overflow-hidden bg-slate-50 relative">
               {previewFile.file.type === 'application/pdf' ? (
@@ -950,9 +743,7 @@ export default function App() {
         <div className="fixed inset-0 z-[150] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl border-t-8 border-rose-500">
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-12 h-12 bg-rose-100 text-rose-500 rounded-2xl flex items-center justify-center shrink-0">
-                <AlertTriangle size={24} />
-              </div>
+              <div className="w-12 h-12 bg-rose-100 text-rose-500 rounded-2xl flex items-center justify-center shrink-0"><AlertTriangle size={24} /></div>
               <h3 className="text-sm font-black uppercase text-slate-800">Atenção: Arquivos Inválidos</h3>
             </div>
             <p className="text-xs text-slate-500 font-medium leading-relaxed mb-8">{errorModal.message}</p>
