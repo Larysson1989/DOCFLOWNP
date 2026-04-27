@@ -1,0 +1,108 @@
+/* ─── DOC.FLOW v2 — Design Tokens (Prefixo: df-) ───────────────────────────
+   ISOLADO: todas as variáveis usam prefixo --df- para não colidir com o sistema existente
+   Paleta: Primary #5B4FE8 | Accent #00C2CB | Background #F8F9FB | Surface #FFFFFF
+*/
+
+:root {
+  /* Cores primárias DOC.FLOW v2 */
+  --df-primary:          #5B4FE8;
+  --df-primary-hover:    #4a3fd4;
+  --df-primary-active:   #3a2fc0;
+  --df-primary-light:    #ede9ff;
+  --df-primary-mid:      #c4bbf9;
+
+  --df-accent:           #00C2CB;
+  --df-accent-hover:     #00a8b0;
+  --df-accent-active:    #008e96;
+  --df-accent-light:     #e0f8f9;
+
+  /* Superfícies */
+  --df-bg:               #F8F9FB;
+  --df-surface:          #FFFFFF;
+  --df-surface-2:        #F4F5F8;
+  --df-surface-offset:   #ECEEF2;
+  --df-border:           rgba(0,0,0,0.08);
+  --df-divider:          rgba(0,0,0,0.06);
+
+  /* Texto */
+  --df-text:             #1A1A2E;
+  --df-text-muted:       #6B7280;
+  --df-text-faint:       #9CA3AF;
+  --df-text-inverse:     #FFFFFF;
+
+  /* Status */
+  --df-success:          #16a34a;
+  --df-success-light:    #dcfce7;
+  --df-warning:          #d97706;
+  --df-warning-light:    #fef3c7;
+  --df-error:            #dc2626;
+  --df-error-light:      #fee2e2;
+  --df-info:             #2563eb;
+  --df-info-light:       #dbeafe;
+
+  /* Tipografia */
+  --df-font-display:     'Plus Jakarta Sans', 'Inter', sans-serif;
+  --df-font-body:        'Inter', 'system-ui', sans-serif;
+
+  /* Escala de texto */
+  --df-text-xs:   clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+  --df-text-sm:   clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+  --df-text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+  --df-text-lg:   clamp(1.125rem, 1rem + 0.75vw, 1.5rem);
+  --df-text-xl:   clamp(1.5rem, 1.2rem + 1.25vw, 2.25rem);
+
+  /* Espaçamento */
+  --df-space-1:  0.25rem;
+  --df-space-2:  0.5rem;
+  --df-space-3:  0.75rem;
+  --df-space-4:  1rem;
+  --df-space-5:  1.25rem;
+  --df-space-6:  1.5rem;
+  --df-space-8:  2rem;
+  --df-space-10: 2.5rem;
+  --df-space-12: 3rem;
+  --df-space-16: 4rem;
+
+  /* Border radius */
+  --df-radius-sm:   0.375rem;
+  --df-radius-md:   0.5rem;
+  --df-radius-lg:   0.75rem;
+  --df-radius-xl:   1rem;
+  --df-radius-2xl:  1.5rem;
+  --df-radius-full: 9999px;
+
+  /* Sombras */
+  --df-shadow-sm: 0 1px 3px rgba(91,79,232,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --df-shadow-md: 0 4px 12px rgba(91,79,232,0.08), 0 2px 6px rgba(0,0,0,0.04);
+  --df-shadow-lg: 0 12px 32px rgba(91,79,232,0.12), 0 4px 12px rgba(0,0,0,0.06);
+  --df-shadow-xl: 0 20px 48px rgba(91,79,232,0.16), 0 8px 20px rgba(0,0,0,0.08);
+
+  /* Transições */
+  --df-transition: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Layout */
+  --df-sidebar-width: 260px;
+  --df-header-height: 64px;
+}
+
+/* Dark mode DOC.FLOW v2 */
+[data-df-theme="dark"] {
+  --df-primary:          #7B72F0;
+  --df-primary-hover:    #9089f5;
+  --df-primary-light:    #2d2960;
+  --df-primary-mid:      #4a4580;
+  --df-accent:           #00d4dd;
+  --df-accent-light:     #003a3d;
+  --df-bg:               #0F0F1A;
+  --df-surface:          #16162A;
+  --df-surface-2:        #1E1E35;
+  --df-surface-offset:   #252542;
+  --df-border:           rgba(255,255,255,0.08);
+  --df-divider:          rgba(255,255,255,0.06);
+  --df-text:             #E8E8F0;
+  --df-text-muted:       #9090B0;
+  --df-text-faint:       #5a5a80;
+  --df-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+  --df-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  --df-shadow-lg: 0 12px 32px rgba(0,0,0,0.5);
+}
